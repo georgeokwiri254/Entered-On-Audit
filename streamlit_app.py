@@ -270,8 +270,9 @@ def search_all_folders_in_mailbox(store, guest_name, first_name="", days=2):
             # Check if this folder should be searched based on priority folders
             should_search = False
             
-            # Priority folders: Inbox, Groups, and specific 2025 subfolders
+            # Priority folders: Inbox, Sent Items, Groups, and specific 2025 subfolders
             if ('inbox' in folder_name or 
+                'sent items' in folder_name or 
                 'groups' in folder_name or 
                 ('2025' in folder_path and ('aug' in folder_path or 'july' in folder_path))):
                 should_search = True
@@ -523,6 +524,13 @@ def perform_audit_checks(df, email_data=None):
     df_audit['match_percentage'] = 0
     df_audit['email_vs_data_status'] = 'N/A'
     
+    # Initialize Mail_ columns with N/A
+    mail_fields = ['ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 
+                 'RATE_CODE', 'C_T_S', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT']
+    
+    for field in mail_fields:
+        df_audit[f'Mail_{field}'] = 'N/A'
+    
     # Create email data lookup for comparison
     email_lookup = {}
     if email_data:
@@ -588,6 +596,14 @@ def perform_audit_checks(df, email_data=None):
             for email in email_result.get('matching_emails', []):
                 if email.get('extracted_data'):
                     email_fields.update(email['extracted_data'])
+            
+            # ADD MAIL_ COLUMNS TO AUDIT DATAFRAME
+            mail_fields = ['ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 
+                         'RATE_CODE', 'C_T_S', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT']
+            
+            for field in mail_fields:
+                mail_col = f'Mail_{field}'
+                df_audit.at[idx, mail_col] = email_fields.get(field, 'N/A')
             
             # Compare fields between email extraction and converted data
             comparison_fields = ['FULL_NAME', 'ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM']
@@ -691,7 +707,7 @@ def main():
     st.sidebar.header("📧 Outlook Configuration")
     st.sidebar.info("This app connects to your local Outlook installation")
     st.sidebar.info("🗓️ Searches last 2 days automatically")
-    st.sidebar.info("📂 Focus: 2025\\Aug, 2025\\July, Groups, Inbox folders")
+    st.sidebar.info("📂 Focus: 2025\\Aug, 2025\\July, Groups, Inbox, Sent Items folders")
     st.sidebar.info("💱 All amounts displayed in AED only")
     
     # Hardcode days to 2
@@ -1051,30 +1067,71 @@ def main():
                 # Display audit results
                 st.subheader("📊 Audit Results")
                 
-                # Configure columns to display - ALL A-P columns from Entered On sheet + Mail_ columns
-                # Entered On sheet columns A-P
-                entered_on_columns = ['FULL_NAME', 'FIRST_NAME', 'ARRIVAL', 'DEPARTURE', 'NIGHTS', 
-                                    'PERSONS', 'ROOM', 'RATE_CODE', 'C_T_S', 'NET_TOTAL', 'TOTAL', 
-                                    'TDF', 'ADR', 'AMOUNT', 'SEASON']
+                # Configure columns to display - Side by side pairs: FIELD then Mail_FIELD
+                # ARRIVAL, Mail_ARRIVAL, DEPARTURE, Mail_DEPARTURE, etc.
+                display_columns = []
                 
-                # Mail_ prefixed columns for comparison
-                mail_columns = ['Mail_ARRIVAL', 'Mail_DEPARTURE', 'Mail_NIGHTS', 'Mail_PERSONS', 
-                              'Mail_ROOM', 'Mail_RATE_CODE', 'Mail_C_T_S', 'Mail_NET_TOTAL', 
-                              'Mail_TOTAL', 'Mail_TDF', 'Mail_ADR', 'Mail_AMOUNT', 'Mail_SEASON']
+                # Start with name columns
+                display_columns.extend(['FULL_NAME', 'FIRST_NAME'])
                 
-                # Audit result columns
+                # Create immediate side-by-side pairs: FIELD, Mail_FIELD
+                comparison_fields = ['ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 
+                                   'RATE_CODE', 'C_T_S', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT']
+                
+                for field in comparison_fields:
+                    # Add original field followed immediately by its Mail_ counterpart
+                    display_columns.extend([field, f'Mail_{field}'])
+                
+                # Add audit result columns at the end
                 audit_columns = ['fields_matching', 'total_email_fields', 'match_percentage', 
                                'email_vs_data_status', 'audit_status', 'audit_issues']
-                
-                # Combine all columns
-                display_columns = entered_on_columns + mail_columns + audit_columns
+                display_columns.extend(audit_columns)
                 available_columns = [col for col in display_columns if col in display_df.columns]
                 
-                st.dataframe(
-                    display_df[available_columns],
-                    use_container_width=True,
-                    height=600
-                )
+                # Apply conditional formatting to highlight mismatched Mail_ columns
+                def highlight_mismatched_data(row):
+                    styles = [''] * len(row)
+                    
+                    # Define comparison fields locally
+                    comparison_fields_local = ['ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 
+                                             'RATE_CODE', 'C_T_S', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT']
+                    
+                    # Compare each field with its Mail_ counterpart
+                    for field in comparison_fields_local:
+                        original_col = field
+                        mail_col = f'Mail_{field}'
+                        
+                        if original_col in row.index and mail_col in row.index:
+                            original_val = str(row[original_col]).strip() if pd.notna(row[original_col]) else 'N/A'
+                            mail_val = str(row[mail_col]).strip() if pd.notna(row[mail_col]) else 'N/A'
+                            
+                            # Skip comparison if either is N/A
+                            if original_val != 'N/A' and mail_val != 'N/A' and original_val != mail_val:
+                                # Apply red text to Mail_ column if values don't match
+                                try:
+                                    mail_col_idx = row.index.get_loc(mail_col)
+                                    styles[mail_col_idx] = 'color: red; font-weight: bold'
+                                except KeyError:
+                                    continue
+                    
+                    return styles
+                
+                # Create styled dataframe with conditional formatting
+                try:
+                    styled_df = display_df[available_columns].style.apply(highlight_mismatched_data, axis=1)
+                    st.dataframe(
+                        styled_df,
+                        use_container_width=True,
+                        height=600
+                    )
+                except Exception as e:
+                    # Fallback to regular dataframe if styling fails
+                    st.warning(f"Conditional formatting failed: {e}")
+                    st.dataframe(
+                        display_df[available_columns],
+                        use_container_width=True,
+                        height=600
+                    )
                 
                 # Show detailed issues for failed records
                 if fail_count > 0:

@@ -17,14 +17,12 @@ Here’s the **10-point workflow with Streamlit + Python**:
 
 ---
 
-2. **📧 IMAP Connection**
+2. **📧 WIn32 Connection**
 
-   * Use Python’s `imaplib` (or `imap-tools`) to connect to the mailbox.
+   * Use Python’s Win32  to connect to the mailbox.
    * Search last **2 days**:
 
-     ```python
-     mail.search(None, '(SINCE "21-Aug-2025")')
-     ```
+     mail.search(None, 
    * Fetch all emails, filter by subject/body containing `guest name` or `reservation number`.
 
 ---
@@ -125,4 +123,4 @@ ADR- Average daily rate Rate without taxes
 
 ---
 
-👉 Do you want me to **draft a Streamlit starter code** (IMAP +INSTALL INSTY  REGREGRE PDF extraction + regex parsing + DB load) so you can test the workflow end-to-end?
+👉 Do you want me to **draft a Streamlit starter code** (+INSTALL INSTY  REGREGRE PDF extraction + regex parsing + DB load) so you can test the workflow end-to-end?
