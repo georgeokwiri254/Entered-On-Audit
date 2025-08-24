@@ -20,8 +20,9 @@ from pathlib import Path
 import win32com.client
 import pythoncom
 
-# Import our existing converter
+# Import our existing converter and database operations
 from entered_on_converter import process_entered_on_report, get_summary_stats
+from database_operations import AuditDatabase
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -48,6 +49,10 @@ if 'selected_file_path' not in st.session_state:
     st.session_state.selected_file_path = None
 if 'auto_loaded' not in st.session_state:
     st.session_state.auto_loaded = False
+if 'current_run_id' not in st.session_state:
+    st.session_state.current_run_id = None
+if 'database' not in st.session_state:
+    st.session_state.database = AuditDatabase()
 
 # Helper functions for email processing using Outlook COM
 def connect_to_outlook():
@@ -472,9 +477,10 @@ def search_emails_for_reservation(outlook, namespace, reservation_data, days=2):
         logger.error(f"Error searching emails for {guest_name}: {e}")
         return []
 
-def process_all_reservations_with_emails(outlook, namespace, reservations_df, days=7):
+def process_all_reservations_with_emails(outlook, namespace, reservations_df, days=7, run_id=None, db=None):
     """Process all reservations and search for matching emails"""
     results = []
+    start_time = datetime.now()
     
     for idx, reservation in reservations_df.iterrows():
         reservation_dict = reservation.to_dict()
@@ -517,12 +523,25 @@ def process_all_reservations_with_emails(outlook, namespace, reservations_df, da
         if idx % 10 == 0:
             logger.info(f"Processed {idx + 1}/{len(reservations_df)} reservations")
     
+    # Save email extraction results to database
+    if run_id and db:
+        try:
+            saved_count = db.save_email_extraction(results, run_id)
+            execution_time = (datetime.now() - start_time).total_seconds()
+            logger.info(f"Saved {saved_count} email extractions to database in {execution_time:.2f}s")
+        except Exception as e:
+            logger.error(f"Failed to save email extraction to database: {e}")
+            if db:
+                db.log_error(run_id, str(e), "process_all_reservations_with_emails")
+    
     return results
 
-def perform_audit_checks(df, email_data=None):
+def perform_audit_checks(df, email_data=None, run_id=None, db=None):
     """Perform audit validation checks on the data including email extraction comparison"""
     if df is None or df.empty:
         return pd.DataFrame()
+    
+    start_time = datetime.now()
     
     df_audit = df.copy()
     df_audit['audit_status'] = 'PASS'
@@ -661,6 +680,17 @@ def perform_audit_checks(df, email_data=None):
             df_audit.at[idx, 'audit_status'] = 'FAIL'
             df_audit.at[idx, 'audit_issues'] = '; '.join(row_issues)
     
+    # Save audit results to database
+    if run_id and db:
+        try:
+            saved_count = db.save_audit_results(df_audit, run_id)
+            execution_time = (datetime.now() - start_time).total_seconds()
+            logger.info(f"Saved {saved_count} audit results to database in {execution_time:.2f}s")
+        except Exception as e:
+            logger.error(f"Failed to save audit results to database: {e}")
+            if db:
+                db.log_error(run_id, str(e), "perform_audit_checks")
+    
     return df_audit
 
 # Streamlit App
@@ -713,125 +743,153 @@ def main():
         st.write("• Email vs data field matching audit")
         st.write("• Automatic file selection from P:\\Reservation\\Entered on")
     
-    # Sidebar for email settings only
-    st.sidebar.header("📧 Outlook Configuration")
-    st.sidebar.info("This app connects to your local Outlook installation")
-    st.sidebar.info("🗓️ Searches last 2 days automatically")
-    st.sidebar.info("📂 Focus: 2025\\Aug, 2025\\July, Groups, 0 OTA Notification, Inbox, Sent Items folders")
-    st.sidebar.info("💱 All amounts displayed in AED only")
-    
     # Hardcode days to 2
     email_days = 2
     
-    
-    # Email processing button
-    if st.sidebar.button("🔄 Search Emails for Each Reservation"):
-        if st.session_state.processed_data is not None:
-            with st.spinner("Connecting to Outlook and searching emails..."):
-                try:
-                    outlook, namespace = connect_to_outlook()
-                    if outlook and namespace:
-                        # Process all reservations and search for emails
-                        email_results = process_all_reservations_with_emails(
-                            outlook, namespace, st.session_state.processed_data, email_days
-                        )
-                        st.session_state.email_data = email_results
-                        
-                        # Summary stats
-                        total_reservations = len(email_results)
-                        with_emails = sum(1 for r in email_results if r['email_count'] > 0)
-                        with_pdf_data = sum(1 for r in email_results if r['has_pdf_data'])
-                        
-                        st.sidebar.success(f"✅ Processed {total_reservations} reservations")
-                        st.sidebar.info(f"📧 Found emails for {with_emails} reservations")
-                        st.sidebar.info(f"📄 Extracted PDF data for {with_pdf_data} reservations")
-                    else:
-                        st.sidebar.error("❌ Could not connect to Outlook")
-                except Exception as e:
-                    st.sidebar.error(f"Error processing emails: {e}")
-        else:
-            st.sidebar.warning("Please upload an Excel file first")
-    
     # Create tabs
-    tab1, tab2, tab3 = st.tabs(["📧 Email Extraction Results", "📊 Converted Data", "🔍 Audit Results"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📧 Email Extraction Results", "📊 Converted Data", "🔍 Audit Results", "📝 Logs & History"])
     
     # Tab 1: Email Extraction Results
     with tab1:
         st.header("📧 Email Extraction Results")
         
-        # File selection section
-        st.subheader("📂 Data Source Selection")
-        col1, col2 = st.columns([2, 1])
+        # Email search controls
+        with st.expander("🔧 Email Search Configuration", expanded=False):
+            st.info("📧 **Outlook Integration**: Connects to your local Outlook installation")
+            st.info("🗓️ **Search Period**: Last 2 days automatically")
+            st.info("📂 **Search Folders**: 2025\\Aug, 2025\\July, Groups, 0 OTA Notification, Inbox, Sent Items")
+            st.info("💱 **Currency**: All amounts displayed in AED only")
         
+        # Email processing button
+        col1, col2 = st.columns([2, 1])
         with col1:
-            # Auto-load on first run
-            if not st.session_state.auto_loaded:
-                latest_file, status_msg = get_latest_file_from_path()
-                if latest_file:
-                    st.session_state.selected_file_path = latest_file
-                    try:
-                        processed_df, csv_path = process_entered_on_report(latest_file)
-                        st.session_state.processed_data = processed_df
-                        st.session_state.uploaded_file_name = os.path.basename(latest_file)
-                        st.session_state.auto_loaded = True
-                        st.success(f"✅ Auto-loaded: {status_msg} ({len(processed_df)} records)")
-                    except Exception as e:
-                        st.warning(f"Auto-load failed: {e}")
-            
-            # Manual refresh button
-            if st.button("🔄 Refresh - Select Latest File from P:\\Reservation\\Entered on"):
-                latest_file, status_msg = get_latest_file_from_path()
-                if latest_file:
-                    st.session_state.selected_file_path = latest_file
-                    st.success(status_msg)
-                    
-                    # Auto-convert the file
-                    try:
-                        with st.spinner("Auto-processing Excel file..."):
-                            processed_df, csv_path = process_entered_on_report(latest_file)
-                            st.session_state.processed_data = processed_df
-                            st.session_state.uploaded_file_name = os.path.basename(latest_file)
-                        st.success(f"✅ Auto-processed {len(processed_df)} records")
-                    except Exception as e:
-                        st.error(f"Error auto-processing file: {e}")
+            if st.button("🔄 Search Emails for Each Reservation", type="primary"):
+                if st.session_state.processed_data is not None:
+                    with st.spinner("Connecting to Outlook and searching emails..."):
+                        try:
+                            outlook, namespace = connect_to_outlook()
+                            if outlook and namespace:
+                                # Process all reservations and search for emails
+                                email_results = process_all_reservations_with_emails(
+                                    outlook, namespace, st.session_state.processed_data, email_days,
+                                    run_id=st.session_state.current_run_id, db=st.session_state.database
+                                )
+                                st.session_state.email_data = email_results
+                                
+                                # Summary stats
+                                total_reservations = len(email_results)
+                                with_emails = sum(1 for r in email_results if r['email_count'] > 0)
+                                with_pdf_data = sum(1 for r in email_results if r['has_pdf_data'])
+                                
+                                st.success(f"✅ Processed {total_reservations} reservations")
+                                st.success(f"📧 Found emails for {with_emails} reservations")
+                                st.success(f"📄 Extracted PDF data for {with_pdf_data} reservations")
+                            else:
+                                st.error("❌ Could not connect to Outlook")
+                        except Exception as e:
+                            st.error(f"Error processing emails: {e}")
                 else:
-                    st.error(status_msg)
+                    st.warning("Please upload an Excel file first")
         
         with col2:
-            # Manual file upload as fallback
-            uploaded_file = st.file_uploader(
-                "Or manually upload Excel file", 
-                type=['xlsm', 'xlsx'],
-                help="Select the Entered On report Excel file"
-            )
-            
-            if uploaded_file is not None:
-                if st.session_state.uploaded_file_name != uploaded_file.name:
-                    st.session_state.uploaded_file_name = uploaded_file.name
-                    
-                    # Save uploaded file temporarily
-                    temp_file_path = f"temp_{uploaded_file.name}"
-                    with open(temp_file_path, "wb") as f:
-                        f.write(uploaded_file.getbuffer())
-                    
-                    try:
-                        # Process the Excel file
-                        with st.spinner("Processing Excel file..."):
-                            processed_df, csv_path = process_entered_on_report(temp_file_path)
-                            st.session_state.processed_data = processed_df
-                        st.success(f"✅ Processed {len(processed_df)} records")
-                    except Exception as e:
-                        st.error(f"Error processing file: {e}")
-                    finally:
-                        # Clean up temp file
-                        if os.path.exists(temp_file_path):
-                            os.remove(temp_file_path)
+            if st.session_state.email_data:
+                st.metric("Email Status", "✅ Complete")
+            else:
+                st.metric("Email Status", "⏳ Pending")
         
-        # Show current file status
-        if st.session_state.processed_data is not None:
-            st.info(f"📄 Currently loaded: {st.session_state.uploaded_file_name} ({len(st.session_state.processed_data)} records)")
-        else:
-            st.warning("📄 No file loaded. Please use refresh button or manual upload above.")
+        st.markdown("---")
+        
+        # File selection section
+        with st.expander("📂 Data Source Selection", expanded=True):
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                # Auto-load on first run
+                if not st.session_state.auto_loaded:
+                    latest_file, status_msg = get_latest_file_from_path()
+                    if latest_file:
+                        st.session_state.selected_file_path = latest_file
+                        try:
+                            result = process_entered_on_report(latest_file)
+                            if len(result) == 3:  # With database (DataFrame, csv_path, run_id)
+                                processed_df, csv_path, run_id = result
+                                st.session_state.current_run_id = run_id
+                            else:  # Without database (DataFrame, csv_path)
+                                processed_df, csv_path = result
+                            
+                            st.session_state.processed_data = processed_df
+                            st.session_state.uploaded_file_name = os.path.basename(latest_file)
+                            st.session_state.auto_loaded = True
+                            st.success(f"✅ Auto-loaded: {status_msg} ({len(processed_df)} records)")
+                        except Exception as e:
+                            st.warning(f"Auto-load failed: {e}")
+                
+                # Manual refresh button
+                if st.button("🔄 Refresh - Select Latest File from P:\\Reservation\\Entered on"):
+                    latest_file, status_msg = get_latest_file_from_path()
+                    if latest_file:
+                        st.session_state.selected_file_path = latest_file
+                        st.success(status_msg)
+                    
+                        # Auto-convert the file
+                        try:
+                            with st.spinner("Auto-processing Excel file..."):
+                                result = process_entered_on_report(latest_file)
+                                if len(result) == 3:  # With database (DataFrame, csv_path, run_id)
+                                    processed_df, csv_path, run_id = result
+                                    st.session_state.current_run_id = run_id
+                                else:  # Without database (DataFrame, csv_path)
+                                    processed_df, csv_path = result
+                                
+                                st.session_state.processed_data = processed_df
+                                st.session_state.uploaded_file_name = os.path.basename(latest_file)
+                            st.success(f"✅ Auto-processed {len(processed_df)} records")
+                        except Exception as e:
+                            st.error(f"Error auto-processing file: {e}")
+                    else:
+                        st.error(status_msg)
+        
+            with col2:
+                # Manual file upload as fallback
+                uploaded_file = st.file_uploader(
+                    "Or manually upload Excel file", 
+                    type=['xlsm', 'xlsx'],
+                    help="Select the Entered On report Excel file"
+                )
+                
+                if uploaded_file is not None:
+                    if st.session_state.uploaded_file_name != uploaded_file.name:
+                        st.session_state.uploaded_file_name = uploaded_file.name
+                        
+                        # Save uploaded file temporarily
+                        temp_file_path = f"temp_{uploaded_file.name}"
+                        with open(temp_file_path, "wb") as f:
+                            f.write(uploaded_file.getbuffer())
+                    
+                        try:
+                            # Process the Excel file
+                            with st.spinner("Processing Excel file..."):
+                                result = process_entered_on_report(temp_file_path)
+                                if len(result) == 3:  # With database (DataFrame, csv_path, run_id)
+                                    processed_df, csv_path, run_id = result
+                                    st.session_state.current_run_id = run_id
+                                else:  # Without database (DataFrame, csv_path)
+                                    processed_df, csv_path = result
+                                
+                                st.session_state.processed_data = processed_df
+                            st.success(f"✅ Processed {len(processed_df)} records")
+                        except Exception as e:
+                            st.error(f"Error processing file: {e}")
+                        finally:
+                            # Clean up temp file
+                            if os.path.exists(temp_file_path):
+                                os.remove(temp_file_path)
+            
+            # Show current file status
+            if st.session_state.processed_data is not None:
+                st.info(f"📄 Currently loaded: {st.session_state.uploaded_file_name} ({len(st.session_state.processed_data)} records)")
+            else:
+                st.warning("📄 No file loaded. Please use refresh button or manual upload above.")
         
         st.markdown("---")
         
@@ -839,26 +897,26 @@ def main():
             email_results = st.session_state.email_data
             
             # Summary metrics
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Total Reservations", len(email_results))
-            with col2:
-                reservations_with_emails = sum(1 for r in email_results if r['email_count'] > 0)
-                st.metric("Found Emails", reservations_with_emails)
-            with col3:
-                reservations_with_data = sum(1 for r in email_results if r['has_pdf_data'])
-                st.metric("PDF Data Extracted", reservations_with_data)
-            with col4:
-                total_emails = sum(r['email_count'] for r in email_results)
-                st.metric("Total Emails", total_emails)
-            
-            st.markdown("---")
+            with st.expander("📊 Email Search Summary", expanded=True):
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Total Reservations", len(email_results))
+                with col2:
+                    reservations_with_emails = sum(1 for r in email_results if r['email_count'] > 0)
+                    st.metric("Found Emails", reservations_with_emails)
+                with col3:
+                    reservations_with_data = sum(1 for r in email_results if r['has_pdf_data'])
+                    st.metric("PDF Data Extracted", reservations_with_data)
+                with col4:
+                    total_emails = sum(r['email_count'] for r in email_results)
+                    st.metric("Total Emails", total_emails)
             
             # Filter options
-            status_filter = st.selectbox("Filter by Status", ["All", "EMAIL_FOUND", "NO_EMAIL_FOUND"])
-            filtered_results = email_results
-            if status_filter != "All":
-                filtered_results = [r for r in email_results if r['status'] == status_filter]
+            with st.expander("🔍 Email Result Filters", expanded=False):
+                status_filter = st.selectbox("Filter by Status", ["All", "EMAIL_FOUND", "NO_EMAIL_FOUND"])
+                filtered_results = email_results
+                if status_filter != "All":
+                    filtered_results = [r for r in email_results if r['status'] == status_filter]
             
             # Email Extraction Results Table - NO DROPDOWNS, JUST TABLE
             st.subheader("📄 Email Extraction Results")
@@ -965,45 +1023,44 @@ def main():
             df = st.session_state.processed_data
             
             # Summary metrics
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Total Records", len(df))
-            with col2:
-                total_amount = df['AMOUNT'].sum() if 'AMOUNT' in df.columns else 0
-                st.metric("Total Amount (AED)", f"AED {total_amount:,.2f}")
-            with col3:
-                total_nights = df['NIGHTS'].sum() if 'NIGHTS' in df.columns else 0
-                st.metric("Total Nights", f"{total_nights:,}")
-            with col4:
-                avg_adr = df['ADR'].mean() if 'ADR' in df.columns else 0
-                st.metric("Average ADR (AED)", f"AED {avg_adr:.2f}")
-            
-            st.markdown("---")
+            with st.expander("📊 Summary Statistics", expanded=True):
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Total Records", len(df))
+                with col2:
+                    total_amount = df['AMOUNT'].sum() if 'AMOUNT' in df.columns else 0
+                    st.metric("Total Amount (AED)", f"AED {total_amount:,.2f}")
+                with col3:
+                    total_nights = df['NIGHTS'].sum() if 'NIGHTS' in df.columns else 0
+                    st.metric("Total Nights", f"{total_nights:,}")
+                with col4:
+                    avg_adr = df['ADR'].mean() if 'ADR' in df.columns else 0
+                    st.metric("Average ADR (AED)", f"AED {avg_adr:.2f}")
             
             # Filters
-            st.subheader("🔍 Filters")
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                if 'SEASON' in df.columns:
-                    seasons = ['All'] + list(df['SEASON'].unique())
-                    selected_season = st.selectbox("Season", seasons)
-                    if selected_season != 'All':
-                        df = df[df['SEASON'] == selected_season]
-            
-            with col2:
-                if 'COMPANY_CLEAN' in df.columns:
-                    companies = ['All'] + list(df['COMPANY_CLEAN'].unique())
-                    selected_company = st.selectbox("Company", companies)
-                    if selected_company != 'All':
-                        df = df[df['COMPANY_CLEAN'] == selected_company]
-            
-            with col3:
-                if 'ROOM' in df.columns:
-                    rooms = ['All'] + list(df['ROOM'].unique())
-                    selected_room = st.selectbox("Room Type", rooms)
-                    if selected_room != 'All':
-                        df = df[df['ROOM'] == selected_room]
+            with st.expander("🔍 Data Filters", expanded=False):
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    if 'SEASON' in df.columns:
+                        seasons = ['All'] + list(df['SEASON'].unique())
+                        selected_season = st.selectbox("Season", seasons)
+                        if selected_season != 'All':
+                            df = df[df['SEASON'] == selected_season]
+                
+                with col2:
+                    if 'COMPANY_CLEAN' in df.columns:
+                        companies = ['All'] + list(df['COMPANY_CLEAN'].unique())
+                        selected_company = st.selectbox("Company", companies)
+                        if selected_company != 'All':
+                            df = df[df['COMPANY_CLEAN'] == selected_company]
+                
+                with col3:
+                    if 'ROOM' in df.columns:
+                        rooms = ['All'] + list(df['ROOM'].unique())
+                        selected_room = st.selectbox("Room Type", rooms)
+                        if selected_room != 'All':
+                            df = df[df['ROOM'] == selected_room]
             
             # Display the full data
             st.subheader("📋 Full Dataset")
@@ -1033,40 +1090,43 @@ def main():
             # Run audit button
             if st.button("🔄 Run Audit Checks"):
                 with st.spinner("Performing audit checks including email extraction comparison..."):
-                    audit_df = perform_audit_checks(st.session_state.processed_data, st.session_state.email_data)
+                    audit_df = perform_audit_checks(
+                        st.session_state.processed_data, st.session_state.email_data,
+                        run_id=st.session_state.current_run_id, db=st.session_state.database
+                    )
                     st.session_state.audit_results = audit_df
             
             if st.session_state.audit_results is not None:
                 audit_df = st.session_state.audit_results
                 
                 # Audit summary - Enhanced with email extraction metrics
-                col1, col2, col3, col4, col5, col6 = st.columns(6)
-                with col1:
-                    st.metric("Total Records", len(audit_df))
-                with col2:
-                    pass_count = len(audit_df[audit_df['audit_status'] == 'PASS'])
-                    st.metric("Passed", pass_count, delta=f"{pass_count/len(audit_df)*100:.1f}%")
-                with col3:
-                    fail_count = len(audit_df[audit_df['audit_status'] == 'FAIL'])
-                    st.metric("Failed", fail_count, delta=f"{fail_count/len(audit_df)*100:.1f}%")
-                with col4:
-                    completion_rate = pass_count / len(audit_df) * 100
-                    st.metric("Success Rate", f"{completion_rate:.1f}%")
-                with col5:
-                    email_pass_count = len(audit_df[audit_df['email_vs_data_status'] == 'PASS'])
-                    st.metric("Email Match PASS", email_pass_count)
-                with col6:
-                    avg_match = audit_df['match_percentage'].mean()
-                    st.metric("Avg Match %", f"{avg_match:.1f}%")
-                
-                st.markdown("---")
+                with st.expander("📊 Audit Summary", expanded=True):
+                    col1, col2, col3, col4, col5, col6 = st.columns(6)
+                    with col1:
+                        st.metric("Total Records", len(audit_df))
+                    with col2:
+                        pass_count = len(audit_df[audit_df['audit_status'] == 'PASS'])
+                        st.metric("Passed", pass_count, delta=f"{pass_count/len(audit_df)*100:.1f}%")
+                    with col3:
+                        fail_count = len(audit_df[audit_df['audit_status'] == 'FAIL'])
+                        st.metric("Failed", fail_count, delta=f"{fail_count/len(audit_df)*100:.1f}%")
+                    with col4:
+                        completion_rate = pass_count / len(audit_df) * 100
+                        st.metric("Success Rate", f"{completion_rate:.1f}%")
+                    with col5:
+                        email_pass_count = len(audit_df[audit_df['email_vs_data_status'] == 'PASS'])
+                        st.metric("Email Match PASS", email_pass_count)
+                    with col6:
+                        avg_match = audit_df['match_percentage'].mean()
+                        st.metric("Avg Match %", f"{avg_match:.1f}%")
                 
                 # Enhanced filters
-                col1, col2 = st.columns(2)
-                with col1:
-                    status_filter = st.selectbox("Filter by Audit Status", ["All", "PASS", "FAIL"])
-                with col2:
-                    email_filter = st.selectbox("Filter by Email Match", ["All", "PASS", "WARNING", "FAIL", "NO_EMAIL_DATA"])
+                with st.expander("🔍 Audit Filters", expanded=False):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        status_filter = st.selectbox("Filter by Audit Status", ["All", "PASS", "FAIL"])
+                    with col2:
+                        email_filter = st.selectbox("Filter by Email Match", ["All", "PASS", "WARNING", "FAIL", "NO_EMAIL_DATA"])
                 
                 display_df = audit_df
                 if status_filter != "All":
@@ -1189,6 +1249,172 @@ def main():
         
         else:
             st.info("👆 Upload an Excel file in the sidebar first to run audit checks.")
+    
+    # Tab 4: Logs & History
+    with tab4:
+        st.header("📝 Logs & History")
+        
+        # Recent runs section
+        st.subheader("🔄 Recent Runs")
+        
+        try:
+            recent_runs = st.session_state.database.get_recent_runs(limit=20)
+            
+            if not recent_runs.empty:
+                # Summary metrics for recent runs
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Total Runs", len(recent_runs))
+                with col2:
+                    completed_runs = len(recent_runs[recent_runs['status'] == 'COMPLETED'])
+                    st.metric("Completed", completed_runs)
+                with col3:
+                    failed_runs = len(recent_runs[recent_runs['status'] == 'FAILED'])
+                    st.metric("Failed", failed_runs, delta=f"{failed_runs}" if failed_runs > 0 else None)
+                with col4:
+                    if st.session_state.current_run_id:
+                        st.metric("Current Run", st.session_state.current_run_id[-8:])  # Show last 8 chars
+                    else:
+                        st.metric("Current Run", "None")
+                
+                st.markdown("---")
+                
+                # Runs table with status indicators
+                runs_display = recent_runs.copy()
+                runs_display['run_timestamp'] = pd.to_datetime(runs_display['run_timestamp']).dt.strftime('%Y-%m-%d %H:%M:%S')
+                runs_display['Status'] = runs_display['status'].apply(
+                    lambda x: f"🟢 {x}" if x == 'COMPLETED' else f"🔴 {x}" if x == 'FAILED' else f"🟡 {x}"
+                )
+                
+                # Display runs table
+                display_columns = ['run_id', 'run_timestamp', 'excel_file_processed', 'Status',
+                                 'reservations_loaded_count', 'emails_found_count', 'audit_pass_count', 'audit_fail_count']
+                available_display_cols = [col for col in display_columns if col in runs_display.columns]
+                
+                st.dataframe(
+                    runs_display[available_display_cols],
+                    use_container_width=True,
+                    height=400
+                )
+                
+                # Run details section
+                st.subheader("🔍 Run Details")
+                
+                # Select a run to view details
+                selected_run = st.selectbox(
+                    "Select a run to view details:",
+                    options=recent_runs['run_id'].tolist(),
+                    format_func=lambda x: f"{x[-8:]} - {recent_runs[recent_runs['run_id']==x]['run_timestamp'].iloc[0]}"
+                )
+                
+                if selected_run:
+                    run_details = recent_runs[recent_runs['run_id'] == selected_run].iloc[0]
+                    
+                    # Run statistics
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write("**Run Statistics:**")
+                        st.write(f"• File: {run_details.get('excel_file_processed', 'N/A')}")
+                        st.write(f"• Reservations Loaded: {run_details.get('reservations_loaded_count', 0)}")
+                        st.write(f"• Emails Found: {run_details.get('emails_found_count', 0)}")
+                        st.write(f"• PDF Extractions: {run_details.get('pdf_extractions_count', 0)}")
+                        st.write(f"• Execution Time: {run_details.get('execution_time_seconds', 0):.2f}s")
+                    
+                    with col2:
+                        st.write("**Audit Results:**")
+                        st.write(f"• Status: {run_details.get('status', 'Unknown')}")
+                        st.write(f"• Passed: {run_details.get('audit_pass_count', 0)}")
+                        st.write(f"• Failed: {run_details.get('audit_fail_count', 0)}")
+                        if run_details.get('audit_pass_count', 0) + run_details.get('audit_fail_count', 0) > 0:
+                            success_rate = (run_details.get('audit_pass_count', 0) / 
+                                          (run_details.get('audit_pass_count', 0) + run_details.get('audit_fail_count', 0))) * 100
+                            st.write(f"• Success Rate: {success_rate:.1f}%")
+                    
+                    # Show errors if any
+                    errors = st.session_state.database.get_run_errors(selected_run)
+                    if errors:
+                        st.subheader("❌ Errors & Issues")
+                        for idx, error in enumerate(errors, 1):
+                            with st.expander(f"Error {idx} - {error.get('timestamp', 'Unknown time')}", expanded=False):
+                                st.write(f"**Context:** {error.get('context', 'N/A')}")
+                                st.code(error.get('error', 'No error message'), language='text')
+                    else:
+                        st.success("✅ No errors recorded for this run")
+                    
+                    # Export options for this run
+                    st.subheader("📥 Export Run Data")
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        if st.button("Export Raw Data", key=f"export_raw_{selected_run}"):
+                            raw_data = st.session_state.database.export_data('reservations_raw', selected_run)
+                            if not raw_data.empty:
+                                csv = raw_data.to_csv(index=False)
+                                st.download_button(
+                                    label="💾 Download Raw Data CSV",
+                                    data=csv,
+                                    file_name=f"raw_data_{selected_run}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                                    mime="text/csv"
+                                )
+                            else:
+                                st.warning("No raw data found for this run")
+                    
+                    with col2:
+                        if st.button("Export Email Data", key=f"export_email_{selected_run}"):
+                            email_data = st.session_state.database.export_data('reservations_email', selected_run)
+                            if not email_data.empty:
+                                csv = email_data.to_csv(index=False)
+                                st.download_button(
+                                    label="💾 Download Email Data CSV",
+                                    data=csv,
+                                    file_name=f"email_data_{selected_run}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                                    mime="text/csv"
+                                )
+                            else:
+                                st.warning("No email data found for this run")
+                    
+                    with col3:
+                        if st.button("Export Audit Data", key=f"export_audit_{selected_run}"):
+                            audit_data = st.session_state.database.export_data('reservations_audit', selected_run)
+                            if not audit_data.empty:
+                                csv = audit_data.to_csv(index=False)
+                                st.download_button(
+                                    label="💾 Download Audit Data CSV",
+                                    data=csv,
+                                    file_name=f"audit_data_{selected_run}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                                    mime="text/csv"
+                                )
+                            else:
+                                st.warning("No audit data found for this run")
+                
+            else:
+                st.info("📭 No runs found in the database yet. Process some data to see runs here.")
+                
+            # Database maintenance section
+            st.subheader("🧹 Database Maintenance")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🗑️ Clean Old Runs (30+ days)"):
+                    try:
+                        deleted_count = st.session_state.database.cleanup_old_runs(days_to_keep=30)
+                        if deleted_count > 0:
+                            st.success(f"✅ Cleaned up {deleted_count} old runs")
+                        else:
+                            st.info("ℹ️ No old runs to clean up")
+                    except Exception as e:
+                        st.error(f"❌ Cleanup failed: {e}")
+            
+            with col2:
+                # Database summary stats
+                summary_stats = st.session_state.database.get_summary_stats()
+                st.write("**Database Summary:**")
+                st.write(f"• Total Runs: {summary_stats.get('total_runs', 0)}")
+                st.write(f"• Total Audits: {summary_stats.get('total_audits', 0)}")
+                
+        except Exception as e:
+            st.error(f"❌ Error loading logs: {e}")
+            st.write("This might be due to database initialization issues. Try processing some data first.")
 
 if __name__ == "__main__":
     main()

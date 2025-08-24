@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import os
 import logging
+from database_operations import AuditDatabase
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -134,19 +135,32 @@ def create_monthly_matrix(df):
     logger.info(f"Created monthly matrix with amount columns: {amount_columns}")
     return pd.DataFrame(matrix_rows)
 
-def process_entered_on_report(file_path, output_csv_path=None):
+def process_entered_on_report(file_path, output_csv_path=None, use_database=True):
     """
     Process the Entered On Excel file and create expanded CSV with month splits and monthly matrix.
+    Also saves data to SQLite database for persistence and tracking.
     
     Args:
         file_path: Path to the Excel file
         output_csv_path: Path for output CSV (optional)
+        use_database: Whether to save to SQLite database (default True)
         
     Returns:
-        Tuple of (DataFrame, csv_path)
+        Tuple of (DataFrame, csv_path, run_id) if use_database=True
+        Tuple of (DataFrame, csv_path) if use_database=False
     """
+    run_id = None
+    db = None
+    start_time = datetime.now()
+    
     try:
         logger.info(f"Processing Entered On report from: {file_path}")
+        
+        # Initialize database if requested
+        if use_database:
+            db = AuditDatabase()
+            run_id = db.start_run(excel_file=os.path.basename(file_path))
+            logger.info(f"Started database run: {run_id}")
         
         # Read the ENTERED ON sheet
         df = pd.read_excel(file_path, sheet_name='ENTERED ON')
@@ -332,7 +346,25 @@ def process_entered_on_report(file_path, output_csv_path=None):
                             # Still can't remove - clean up and use timestamped version
                             logger.warning(f"Could not replace canonical file after multiple attempts")
                             os.remove(temp_canonical_path)
-                            return matrix_df, output_csv_path
+                            
+                            # Save to database before returning if requested
+                            if use_database and db and run_id:
+                                try:
+                                    saved_count = db.save_raw_reservations(matrix_df, run_id)
+                                    execution_time = (datetime.now() - start_time).total_seconds()
+                                    db.update_run_stats(run_id, {
+                                        'execution_time_seconds': execution_time,
+                                        'status': 'PROCESSING_COMPLETE'
+                                    })
+                                    return matrix_df, output_csv_path, run_id
+                                except Exception as db_error:
+                                    logger.error(f"Database save failed: {db_error}")
+                                    db.log_error(run_id, str(db_error), "save_raw_reservations")
+                            
+                            if use_database and run_id:
+                                return matrix_df, output_csv_path, run_id
+                            else:
+                                return matrix_df, output_csv_path
                 
                 # Rename temp file to canonical name
                 os.rename(temp_canonical_path, canonical_path)
@@ -348,14 +380,49 @@ def process_entered_on_report(file_path, output_csv_path=None):
                         pass
                 logger.warning(f"Atomic write failed: {e}")
         
+        # Save to database if requested
+        if use_database and db and run_id:
+            try:
+                # Save the processed data to database
+                saved_count = db.save_raw_reservations(matrix_df, run_id)
+                logger.info(f"Saved {saved_count} reservations to database")
+                
+                # Calculate execution time and update run stats
+                execution_time = (datetime.now() - start_time).total_seconds()
+                db.update_run_stats(run_id, {
+                    'execution_time_seconds': execution_time,
+                    'status': 'PROCESSING_COMPLETE'
+                })
+                
+            except Exception as db_error:
+                logger.error(f"Database save failed: {db_error}")
+                if db and run_id:
+                    db.log_error(run_id, str(db_error), "save_raw_reservations")
+        
+        # Return appropriate values based on database usage
         if success:
-            return matrix_df, canonical_path
+            if use_database and run_id:
+                return matrix_df, canonical_path, run_id
+            else:
+                return matrix_df, canonical_path
         else:
             logger.warning(f"Could not save canonical version, using timestamped file: {output_csv_path}")
-            return matrix_df, output_csv_path
+            if use_database and run_id:
+                return matrix_df, output_csv_path, run_id
+            else:
+                return matrix_df, output_csv_path
         
     except Exception as e:
         logger.error(f"Error processing Entered On report: {e}")
+        
+        # Log error to database if available
+        if use_database and db and run_id:
+            try:
+                db.log_error(run_id, str(e), "process_entered_on_report")
+                db.update_run_stats(run_id, {'status': 'FAILED'})
+            except:
+                pass  # Don't let database errors mask the original error
+        
         raise
 
 def get_summary_stats(df):
