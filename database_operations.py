@@ -35,9 +35,50 @@ class AuditDatabase:
         finally:
             conn.close()
     
+    def _migrate_schema(self, conn):
+        """Handle schema migrations for existing databases"""
+        try:
+            # Add NET column to reservations_raw table if it doesn't exist
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(reservations_raw)")
+            columns = [col[1] for col in cursor.fetchall()]
+            
+            if 'net' not in columns:
+                logger.info("Adding 'net' column to reservations_raw table")
+                conn.execute("ALTER TABLE reservations_raw ADD COLUMN net REAL DEFAULT 0.0")
+            
+            # Add mail_c_t_s_name and mail_net columns to reservations_email table
+            cursor.execute("PRAGMA table_info(reservations_email)")
+            columns = [col[1] for col in cursor.fetchall()]
+            
+            if 'mail_c_t_s_name' not in columns:
+                logger.info("Adding 'mail_c_t_s_name' column to reservations_email table")
+                conn.execute("ALTER TABLE reservations_email ADD COLUMN mail_c_t_s_name TEXT DEFAULT ''")
+            
+            if 'mail_net' not in columns:
+                logger.info("Adding 'mail_net' column to reservations_email table")
+                conn.execute("ALTER TABLE reservations_email ADD COLUMN mail_net REAL DEFAULT 0.0")
+            
+            # Add mail_c_t_s_name and mail_net columns to reservations_audit table
+            cursor.execute("PRAGMA table_info(reservations_audit)")
+            columns = [col[1] for col in cursor.fetchall()]
+            
+            if 'mail_c_t_s_name' not in columns:
+                logger.info("Adding 'mail_c_t_s_name' column to reservations_audit table")
+                conn.execute("ALTER TABLE reservations_audit ADD COLUMN mail_c_t_s_name TEXT DEFAULT ''")
+            
+            if 'mail_net' not in columns:
+                logger.info("Adding 'mail_net' column to reservations_audit table")
+                conn.execute("ALTER TABLE reservations_audit ADD COLUMN mail_net REAL DEFAULT 0.0")
+            
+        except Exception as e:
+            logger.warning(f"Schema migration failed: {e}")
+    
     def init_database(self):
         """Initialize database with all required tables"""
         with self.get_connection() as conn:
+            # Run schema migrations first
+            self._migrate_schema(conn)
             # Create audit_log table (run tracking)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS audit_log (
@@ -70,6 +111,7 @@ class AuditDatabase:
                     room TEXT,
                     rate_code TEXT,
                     c_t_s_name TEXT,
+                    net REAL,
                     net_total REAL,
                     amount REAL,
                     adr REAL,
@@ -103,6 +145,8 @@ class AuditDatabase:
                     mail_room TEXT,
                     mail_rate_code TEXT,
                     mail_c_t_s TEXT,
+                    mail_c_t_s_name TEXT,
+                    mail_net REAL,
                     mail_net_total REAL,
                     mail_total REAL,
                     mail_tdf REAL,
@@ -130,6 +174,7 @@ class AuditDatabase:
                     room TEXT,
                     rate_code TEXT,
                     c_t_s_name TEXT,
+                    net REAL,
                     net_total REAL,
                     amount REAL,
                     adr REAL,
@@ -145,6 +190,8 @@ class AuditDatabase:
                     mail_room TEXT,
                     mail_rate_code TEXT,
                     mail_c_t_s TEXT,
+                    mail_c_t_s_name TEXT,
+                    mail_net REAL,
                     mail_net_total REAL,
                     mail_total REAL,
                     mail_tdf REAL,
@@ -245,6 +292,7 @@ class AuditDatabase:
                         'room': row.get('ROOM', ''),
                         'rate_code': row.get('RATE_CODE', ''),
                         'c_t_s_name': row.get('C_T_S_NAME', ''),
+                        'net': row.get('NET', 0.0),
                         'net_total': row.get('NET_TOTAL', 0.0),
                         'amount': row.get('AMOUNT', 0.0),
                         'adr': row.get('ADR', 0.0),
@@ -304,6 +352,8 @@ class AuditDatabase:
                             'mail_room': extracted_data.get('ROOM', ''),
                             'mail_rate_code': extracted_data.get('RATE_CODE', ''),
                             'mail_c_t_s': extracted_data.get('C_T_S', ''),
+                            'mail_c_t_s_name': extracted_data.get('C_T_S_NAME', ''),
+                            'mail_net': self._parse_float(extracted_data.get('NET', 0)),
                             'mail_net_total': self._parse_float(extracted_data.get('NET_TOTAL', 0)),
                             'mail_total': self._parse_float(extracted_data.get('TOTAL', 0)),
                             'mail_tdf': self._parse_float(extracted_data.get('TDF', 0)),
@@ -361,6 +411,7 @@ class AuditDatabase:
                         'room': row.get('ROOM', ''),
                         'rate_code': row.get('RATE_CODE', ''),
                         'c_t_s_name': row.get('C_T_S_NAME', ''),
+                        'net': row.get('NET', 0.0),
                         'net_total': row.get('NET_TOTAL', 0.0),
                         'amount': row.get('AMOUNT', 0.0),
                         'adr': row.get('ADR', 0.0),
@@ -376,6 +427,8 @@ class AuditDatabase:
                         'mail_room': row.get('Mail_ROOM', ''),
                         'mail_rate_code': row.get('Mail_RATE_CODE', ''),
                         'mail_c_t_s': row.get('Mail_C_T_S', ''),
+                        'mail_c_t_s_name': row.get('Mail_C_T_S_NAME', ''),
+                        'mail_net': row.get('Mail_NET', 0.0),
                         'mail_net_total': row.get('Mail_NET_TOTAL', 0.0),
                         'mail_total': row.get('Mail_TOTAL', 0.0),
                         'mail_tdf': row.get('Mail_TDF', 0.0),

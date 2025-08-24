@@ -67,14 +67,29 @@ def connect_to_outlook():
         return None, None
 
 def extract_pdf_text(pdf_bytes):
-    """Extract text from PDF bytes"""
+    """Extract text from PDF bytes with enhanced error handling"""
     try:
         pdf_file = io.BytesIO(pdf_bytes)
         text = ""
+        
         with pdfplumber.open(pdf_file) as pdf:
-            for page in pdf.pages:
-                text += page.extract_text() or ""
-        return text
+            logger.info(f"PDF has {len(pdf.pages)} pages")
+            for page_num, page in enumerate(pdf.pages):
+                try:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += f"\n--- Page {page_num + 1} ---\n{page_text}"
+                    else:
+                        logger.warning(f"No text extracted from page {page_num + 1}")
+                except Exception as e:
+                    logger.warning(f"Failed to extract text from page {page_num + 1}: {e}")
+                    continue
+        
+        if not text.strip():
+            logger.warning("No text extracted from PDF - may be image-based")
+            
+        return text.strip()
+        
     except Exception as e:
         logger.error(f"PDF extraction failed: {e}")
         return ""
@@ -109,19 +124,37 @@ def extract_reservation_fields(text, sender_email=""):
         # Merge subject patterns with main patterns
         patterns.update(subject_patterns)
     else:
-        # Original patterns for other emails (PDFs, etc.)
-        patterns = {
-            'FULL_NAME': r"(?:Name|Guest Name)[:\s]+(.+?)(?:\n|$)",
-            'FIRST_NAME': r"(?:First Name)[:\s]+(.+?)(?:\n|$)",
-            'ARRIVAL': r"(?:Arrival|Check-in)[:\s]+(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})",
-            'DEPARTURE': r"(?:Departure|Check-out)[:\s]+(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})",
-            'NIGHTS': r"(?:Nights|Night)[:\s]+(\d+)",
-            'PERSONS': r"(?:Persons|Guest|Adults?)[:\s]+(\d+)",
-            'ROOM': r"(?:Room|Room Type)[:\s]+(.+?)(?:\n|$)",
-            'RATE_CODE': r"(?:Rate Code|Rate)[:\s]+(.+?)(?:\n|$)",
-            'COMPANY': r"(?:Company|Agency)[:\s]+(.+?)(?:\n|$)",
-            'NET_TOTAL': r"(?:Total|Net Total|Amount|Net Amount)[:\s]+(?:AED\s*)?([\\d,]+\.?\\d*)",
-        }
+        # Enhanced patterns for PDFs including C- China Southern Air
+        if "c- china southern air" in text.lower() or "china southern" in text.lower():
+            # Specific patterns for China Southern Air reservations
+            patterns = {
+                'FULL_NAME': r"(?:Passenger Name|Guest Name|Name)[:\s]*([A-Z][A-Za-z\s]+)(?:\n|Cabin|Flight)",
+                'FIRST_NAME': r"(?:First Name|Given Name)[:\s]*([A-Za-z]+)",
+                'ARRIVAL': r"(?:Arrival Date|Check.?in|Arrival)[:\s]*(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})",
+                'DEPARTURE': r"(?:Departure Date|Check.?out|Departure)[:\s]*(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})",
+                'NIGHTS': r"(?:Nights?|Night Stay|Duration)[:\s]*(\d+)",
+                'PERSONS': r"(?:Passengers?|Guests?|Adults?|Pax)[:\s]*(\d+)",
+                'ROOM': r"(?:Room Type|Cabin|Accommodation)[:\s]*([A-Z0-9\s]+)",
+                'RATE_CODE': r"(?:Rate Code|Booking Code|Reference)[:\s]*([A-Z0-9]+)",
+                'COMPANY': r"(?:China Southern Air|C- China Southern Air)",
+                'NET_TOTAL': r"(?:Total Cost|Total Amount|Net Total|Total)[:\s]*(?:AED|USD)?\s*([0-9,]+\.?[0-9]*)",
+                'CONFIRMATION': r"(?:PNR|Confirmation|Booking Reference)[:\s]*([A-Z0-9]+)",
+                'FLIGHT': r"(?:Flight|Flight Number)[:\s]*([A-Z0-9]+)",
+            }
+        else:
+            # Original patterns for other emails (PDFs, etc.)
+            patterns = {
+                'FULL_NAME': r"(?:Name|Guest Name)[:\s]+(.+?)(?:\n|$)",
+                'FIRST_NAME': r"(?:First Name)[:\s]+(.+?)(?:\n|$)",
+                'ARRIVAL': r"(?:Arrival|Check-in)[:\s]+(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})",
+                'DEPARTURE': r"(?:Departure|Check-out)[:\s]+(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})",
+                'NIGHTS': r"(?:Nights|Night)[:\s]+(\d+)",
+                'PERSONS': r"(?:Persons|Guest|Adults?)[:\s]+(\d+)",
+                'ROOM': r"(?:Room|Room Type)[:\s]+(.+?)(?:\n|$)",
+                'RATE_CODE': r"(?:Rate Code|Rate)[:\s]+(.+?)(?:\n|$)",
+                'COMPANY': r"(?:Company|Agency)[:\s]+(.+?)(?:\n|$)",
+                'NET_TOTAL': r"(?:Total|Net Total|Amount|Net Amount)[:\s]+(?:AED\s*)?([\\d,]+\.?\\d*)",
+            }
     
     extracted = {}
     
@@ -170,21 +203,37 @@ def extract_reservation_fields(text, sender_email=""):
         else:
             extracted['RATE_CODE'] = 'N/A'
     
-    # Convert dates to dd/mm/yyyy format
+    # Convert dates to dd/mm/yyyy format - Enhanced logic for INNLINK2WAY
     for date_field in ['ARRIVAL', 'DEPARTURE', 'ARRIVAL_SUBJECT']:
         if date_field in extracted and extracted[date_field] != 'N/A':
             try:
-                # Always use dayfirst=True to ensure dd/mm/yyyy interpretation
-                parsed_date = pd.to_datetime(extracted[date_field], dayfirst=True)
-                extracted[date_field] = parsed_date.strftime('%d/%m/%Y')
-            except:
-                # If parsing fails, try different formats
+                original_date = extracted[date_field]
+                
+                # Special handling for INNLINK2WAY and noreply-reservations emails
+                if ("noreply-reservations@millenniumhotels.com" in sender_email.lower() or 
+                    "innlink2way" in sender_email.lower()):
+                    # For INNLINK2WAY, dates are typically in mm/dd/yyyy format that need conversion
+                    try:
+                        # First try parsing as mm/dd/yyyy (dayfirst=False)
+                        parsed_date = pd.to_datetime(original_date, dayfirst=False)
+                        extracted[date_field] = parsed_date.strftime('%d/%m/%Y')
+                        continue
+                    except:
+                        pass
+                
+                # Default: try dd/mm/yyyy format first
                 try:
-                    # Try mm/dd/yyyy format as fallback
-                    parsed_date = pd.to_datetime(extracted[date_field], dayfirst=False)
+                    parsed_date = pd.to_datetime(original_date, dayfirst=True)
                     extracted[date_field] = parsed_date.strftime('%d/%m/%Y')
                 except:
-                    pass  # Keep original value if all parsing fails
+                    # Fallback: try mm/dd/yyyy format
+                    try:
+                        parsed_date = pd.to_datetime(original_date, dayfirst=False)
+                        extracted[date_field] = parsed_date.strftime('%d/%m/%Y')
+                    except:
+                        pass  # Keep original value if all parsing fails
+            except:
+                pass
     
     # Use arrival from subject if main arrival not found
     if extracted.get('ARRIVAL', 'N/A') == 'N/A' and extracted.get('ARRIVAL_SUBJECT', 'N/A') != 'N/A':
@@ -238,11 +287,23 @@ def extract_reservation_fields(text, sender_email=""):
         extracted['AMOUNT'] = "N/A"
         extracted['TOTAL'] = "N/A"
     
-    # Map COMPANY to C_T_S (Company name)
-    if extracted.get('COMPANY', 'N/A') != 'N/A':
-        extracted['C_T_S'] = extracted['COMPANY']
+    # Special handling for China Southern Air reservations
+    if "c- china southern air" in text.lower() or "china southern" in text.lower():
+        extracted['C_T_S'] = "C- China Southern Air"
+        extracted['C_T_S_NAME'] = "C- China Southern Air"
+        extracted['COMPANY'] = "C- China Southern Air"
+        
+        # If we found flight info, store it in rate code
+        if extracted.get('FLIGHT', 'N/A') != 'N/A':
+            extracted['RATE_CODE'] = extracted['FLIGHT']
     else:
-        extracted['C_T_S'] = "N/A"
+        # Map COMPANY to C_T_S (Company name) for other types
+        if extracted.get('COMPANY', 'N/A') != 'N/A':
+            extracted['C_T_S'] = extracted['COMPANY']
+            extracted['C_T_S_NAME'] = extracted['COMPANY']
+        else:
+            extracted['C_T_S'] = "N/A"
+            extracted['C_T_S_NAME'] = "N/A"
     
     return extracted
 
@@ -403,36 +464,59 @@ def search_items_in_folder_for_guest(items, folder_name, guest_name, first_name=
                         
                         if filename and filename.lower().endswith('.pdf'):
                             try:
-                                # Save attachment temporarily
-                                temp_path = f"temp_{filename.replace(' ', '_').replace('/', '_')}"
+                                # Save attachment temporarily with safe filename
+                                safe_filename = f"temp_{filename.replace(' ', '_').replace('/', '_').replace('\\', '_')}"
+                                temp_path = os.path.join(os.getcwd(), safe_filename)
+                                
+                                logger.info(f"Processing PDF attachment: {filename}")
                                 attachment.SaveAsFile(temp_path)
                                 
-                                with open(temp_path, 'rb') as f:
-                                    pdf_data = f.read()
-                                    text = extract_pdf_text(pdf_data)
-                                    
-                                    if text:
-                                        extracted_fields = extract_reservation_fields(text, sender_email)
+                                if os.path.exists(temp_path):
+                                    with open(temp_path, 'rb') as f:
+                                        pdf_data = f.read()
+                                        logger.info(f"PDF size: {len(pdf_data)} bytes")
+                                        text = extract_pdf_text(pdf_data)
                                         
-                                        # Format currency fields
-                                        for field in ['NET_TOTAL', 'TDF']:
-                                            if extracted_fields.get(field) != 'N/A':
-                                                try:
-                                                    amount = float(extracted_fields[field].replace(',', ''))
-                                                    extracted_fields[f'{field}_AED'] = f"AED {amount:,.2f}"
-                                                except:
-                                                    pass
-                                        
-                                        email_info['extracted_data'] = extracted_fields
-                                        email_info['attachments'].append({
-                                            'filename': filename,
-                                            'size': len(pdf_data),
-                                            'text_extracted': bool(text)
-                                        })
+                                        if text and len(text.strip()) > 10:  # Minimum text threshold
+                                            logger.info(f"Extracted {len(text)} characters from PDF")
+                                            extracted_fields = extract_reservation_fields(text, sender_email)
+                                            
+                                            # Format currency fields including NET
+                                            for field in ['NET', 'NET_TOTAL', 'TDF', 'AMOUNT', 'TOTAL']:
+                                                if extracted_fields.get(field) != 'N/A' and extracted_fields.get(field):
+                                                    try:
+                                                        amount_str = str(extracted_fields[field]).replace(',', '')
+                                                        amount = float(amount_str)
+                                                        extracted_fields[f'{field}_AED'] = f"AED {amount:,.2f}"
+                                                    except ValueError:
+                                                        logger.warning(f"Could not parse currency field {field}: {extracted_fields[field]}")
+                                            
+                                            email_info['extracted_data'] = extracted_fields
+                                            email_info['attachments'].append({
+                                                'filename': filename,
+                                                'size': len(pdf_data),
+                                                'text_extracted': True,
+                                                'text_length': len(text),
+                                                'contains_china_southern': 'china southern' in text.lower()
+                                            })
+                                            logger.info(f"Successfully processed PDF: {filename}")
+                                        else:
+                                            logger.warning(f"Insufficient text extracted from PDF: {filename}")
+                                            email_info['attachments'].append({
+                                                'filename': filename,
+                                                'size': len(pdf_data),
+                                                'text_extracted': False,
+                                                'error': 'No readable text found'
+                                            })
+                                else:
+                                    logger.error(f"Failed to save PDF attachment: {filename}")
                                 
                                 # Clean up temp file
                                 if os.path.exists(temp_path):
-                                    os.remove(temp_path)
+                                    try:
+                                        os.remove(temp_path)
+                                    except Exception as cleanup_error:
+                                        logger.warning(f"Could not clean up temp file {temp_path}: {cleanup_error}")
                                     
                             except Exception as e:
                                 logger.warning(f"Error processing PDF {filename}: {e}")
@@ -553,7 +637,7 @@ def perform_audit_checks(df, email_data=None, run_id=None, db=None):
     
     # Initialize Mail_ columns with N/A
     mail_fields = ['FIRST_NAME', 'ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 
-                 'RATE_CODE', 'C_T_S', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT']
+                 'RATE_CODE', 'C_T_S', 'C_T_S_NAME', 'NET', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT']
     
     for field in mail_fields:
         df_audit[f'Mail_{field}'] = 'N/A'
@@ -627,7 +711,7 @@ def perform_audit_checks(df, email_data=None, run_id=None, db=None):
             
             # ADD MAIL_ COLUMNS TO AUDIT DATAFRAME
             mail_fields = ['FIRST_NAME', 'ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 
-                         'RATE_CODE', 'C_T_S', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT']
+                         'RATE_CODE', 'C_T_S', 'C_T_S_NAME', 'NET', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT']
             
             for field in mail_fields:
                 mail_col = f'Mail_{field}'
@@ -655,6 +739,13 @@ def perform_audit_checks(df, email_data=None, run_id=None, db=None):
                                 matching_fields += 1
                         except:
                             pass  # Date format mismatch
+                    elif field == 'ROOM':
+                        # Special handling for ST and SK room group - they're equivalent (twin/king bed)
+                        email_room = str(email_value).lower().strip()
+                        data_room = str(data_value).lower().strip()
+                        if (email_room == data_room or 
+                            (email_room in ['st', 'sk'] and data_room in ['st', 'sk'])):
+                            matching_fields += 1
                     elif str(email_value).lower().strip() == str(data_value).lower().strip():
                         matching_fields += 1
             
@@ -734,9 +825,11 @@ def main():
     
     # Quick info about improvements
     with st.sidebar.expander("🆕 Recent Improvements"):
+        st.write("• Complete SQLite integration with persistent storage")
+        st.write("• Enhanced Logs & History tab with run tracking")
+        st.write("• Improved UI with collapsible sections")
         st.write("• Enhanced current mailbox search (all folders)")
-        st.write("• Updated Email Extraction Results format to match Entered On sheet")
-        st.write("• Enhanced search for names like 'Avital' and 'Shi Guang'")
+        st.write("• Added 0 OTA Notification folder search")
         st.write("• Support for noreply-reservations@millenniumhotels.com emails")
         st.write("• Added comprehensive rate extraction (ADR, TDF calculation)")
         st.write("• Currency set to AED only")
@@ -926,7 +1019,7 @@ def main():
             # Entered On sheet columns A-P (removing Guest_Name, separating NET_TOTAL and TOTAL, C_T_S as Company name)
             specified_fields = ['FULL_NAME', 'FIRST_NAME', 'ARRIVAL', 'DEPARTURE', 
                               'NIGHTS', 'PERSONS', 'ROOM', 'RATE_CODE', 'C_T_S',
-                              'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT', 'SEASON']
+                              'NET', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT', 'SEASON']
             
             for result in filtered_results:
                 reservation = result['reservation_data']
@@ -948,7 +1041,7 @@ def main():
                 for field in specified_fields:
                     value = email_data.get(field, 'N/A')
                     # Format currency fields
-                    if field in ['TDF', 'NET_TOTAL', 'TOTAL', 'AMOUNT'] and value != 'N/A':
+                    if field in ['TDF', 'NET', 'NET_TOTAL', 'TOTAL', 'AMOUNT'] and value != 'N/A':
                         try:
                             amount = float(str(value).replace(',', ''))
                             value = f"AED {amount:,.2f}"
@@ -958,11 +1051,11 @@ def main():
                 
                 # Add corresponding Mail_ columns for extracted email data
                 mail_fields = ['FIRST_NAME', 'ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 'RATE_CODE', 
-                             'C_T_S', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT', 'SEASON']
+                             'C_T_S', 'C_T_S_NAME', 'NET', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT', 'SEASON']
                 for field in mail_fields:
                     mail_value = email_data.get(field, 'N/A')
                     # Format currency fields
-                    if field in ['TDF', 'NET_TOTAL', 'TOTAL', 'AMOUNT'] and mail_value != 'N/A':
+                    if field in ['TDF', 'NET', 'NET_TOTAL', 'TOTAL', 'AMOUNT'] and mail_value != 'N/A':
                         try:
                             amount = float(str(mail_value).replace(',', ''))
                             mail_value = f"AED {amount:,.2f}"
@@ -1013,7 +1106,7 @@ def main():
                     mime="text/csv"
                 )
         else:
-            st.info("👆 Load an Excel file using the options above, then click 'Search Emails for Each Reservation' in the sidebar.")
+            st.info("👆 Load an Excel file using the options above, then click 'Search Emails for Each Reservation' button.")
     
     # Tab 2: Converted Data (Full Entered On sheet)
     with tab2:
@@ -1080,7 +1173,7 @@ def main():
             )
             
         else:
-            st.info("👆 Upload an Excel file in the sidebar to see the converted data.")
+            st.info("👆 Go to Email Extraction Results tab to load an Excel file first.")
     
     # Tab 3: Audit Results
     with tab3:
@@ -1146,7 +1239,7 @@ def main():
                 
                 # Create immediate side-by-side pairs: FIELD, Mail_FIELD
                 comparison_fields = ['ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 
-                                   'RATE_CODE', 'C_T_S', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT']
+                                   'RATE_CODE', 'C_T_S', 'NET', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT']
                 
                 for field in comparison_fields:
                     # Add original field followed immediately by its Mail_ counterpart
@@ -1248,7 +1341,7 @@ def main():
                 st.info("👆 Click 'Run Audit Checks' to perform validation on the data.")
         
         else:
-            st.info("👆 Upload an Excel file in the sidebar first to run audit checks.")
+            st.info("👆 Go to Email Extraction Results tab to load an Excel file first.")
     
     # Tab 4: Logs & History
     with tab4:

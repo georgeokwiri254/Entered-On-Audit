@@ -124,7 +124,101 @@ ADR- Average daily rate Rate without taxes
 
 1. Bookings from T- Booking.com, T- Expedia, T- Agoda.com Company, Brand.com
 2. Bookings from *INNLINK2WAY under the  under the INSERT_USER label will be from noreply-reservations@millenniumhotels.com email
-3. 
+3. INNLINK2WAY the date format is the csame and has to conversted from mm/dd/yyyy to dd/mm/yyyy
+4. for T-Booking.com and T-Brand.com the amount on email will be Mail_TOTAL . For such reservations Mail_NET_TOTAL will be = Mail_TOTAL-Mail_TDF. amount with TDF
+5. For T- Expedia and Agoda Mail_TOTAL=Mail_NET_TOTAL+Mail_TDF. the amount in the email will be Mail_NET_TOTAL. amount without TDF
+6. 
+
+
+
+Great question 👌 — let’s clarify exactly  **how SQLite fits into your audit project** .
+
+---
+
+## 🔹 Why Use SQLite?
+
+* **Lightweight DB** (just a `.db` file).
+* Works fully  **offline** .
+* Lets you keep a  **history of audits** , not just one-off runs.
+* Enables **fast filtering/searching** in Streamlit (instead of re-parsing Excel + Outlook every time).
+* Provides an **audit trail** (who changed what, when).
+
+---
+
+## 🔹 Where SQLite Fits in the Workflow
+
+1. **🟢 Load Excel → Raw Table**
+
+   * When you upload the `.xlsm` **ENTERED ON** sheet, you write it into SQLite as a table `reservations_raw`.
+
+   ```python
+   df.to_sql("reservations_raw", conn, if_exists="replace", index=False)
+   ```
+
+   This gives you a persistent store of what came from Excel.
+
+---
+
+2. **🟢 Fetch Emails → Parsed Table**
+   * As you extract reservation data from Outlook emails/PDFs, you insert them into `reservations_email`.
+   * Schema: use outlook extraction schema
+
+---
+
+3. **🟢 Enrichment → Final Table**
+   * Merge `reservations_raw` + `reservations_email`.
+   * Fill missing fields (from email or default `N/A`).
+   * Apply audit rules.
+   * Store results in `reservations_audit`.
+   * Schema example: Use Audit Results table  schema
+
+---
+
+4. **🟢 Logs & History**
+   * Each run inserts into an `audit_log` table:
+     * Timestamp
+     * How many reservations loaded
+     * How many failed audit
+     * Missing fields count
+
+---
+
+5. **🟢 Streamlit Queries SQLite**
+   * Instead of working on DataFrames only, Streamlit can:
+     * Query reservations by date, status, or company (`SELECT * FROM reservations_audit WHERE audit_status='FAIL'`)
+     * Filter by `arrival_date BETWEEN X AND Y`.
+     * Show dashboards (missing fields by type).
+
+---
+
+6. **🟢 Export**
+   * Final results come from `reservations_audit`.
+   * User clicks “Export” → query SQLite → output CSV/XLSX.
+
+---
+
+## 🔹 Example Flow with SQLite
+
+```
+Excel (.xlsm) ─▶ reservations_raw
+Outlook/PDFs  ─▶ reservations_email
+              ─▶ merge + audit ─▶ reservations_audit
+Logs & runs   ─▶ audit_log
+```
+
+---
+
+## 🔹 Why Not Just Use Pandas?
+
+* Pandas is fine for  **one-off runs** , but SQLite gives you:
+  * **Persistence** (results saved even after app closes).
+  * **Filtering/Searching** large data much faster.
+  * **History** (you can compare today’s vs yesterday’s audit).
+  * **Integration** (easier to plug into BI dashboards later).
+
+---
+
+👉 Do you want me to show you a **sample SQLite schema + code snippets** for `reservations_raw`, `reservations_email`, and `reservations_audit` so you see how the tables will look?
 
 ---
 
