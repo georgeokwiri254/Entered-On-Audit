@@ -1269,11 +1269,44 @@ def main():
                             mail_val = str(row[mail_col]).strip() if pd.notna(row[mail_col]) else 'N/A'
                             
                             # Skip comparison if either is N/A
-                            if original_val != 'N/A' and mail_val != 'N/A' and original_val != mail_val:
-                                # Apply red text to Mail_ column if values don't match
+                            if original_val != 'N/A' and mail_val != 'N/A':
                                 try:
                                     mail_col_idx = row.index.get_loc(mail_col)
-                                    styles[mail_col_idx] = 'color: red; font-weight: bold'
+                                    
+                                    # For numeric fields (amounts), apply rounding to 2 decimal places and tolerance logic
+                                    if field in ['NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT']:
+                                        try:
+                                            # Clean and convert to float, removing AED prefix and commas
+                                            original_clean = original_val.replace('AED', '').replace(',', '').strip()
+                                            mail_clean = mail_val.replace('AED', '').replace(',', '').strip()
+                                            
+                                            original_num = round(float(original_clean), 2)
+                                            mail_num = round(float(mail_clean), 2)
+                                            
+                                            # Calculate difference
+                                            difference = abs(original_num - mail_num)
+                                            
+                                            if difference == 0:
+                                                # Perfect match - mark green
+                                                styles[mail_col_idx] = 'color: green; font-weight: bold'
+                                            elif difference <= 1:
+                                                # Within ±1 tolerance - don't mark red (no special color)
+                                                pass
+                                            else:
+                                                # Outside tolerance - mark red
+                                                styles[mail_col_idx] = 'color: red; font-weight: bold'
+                                        except (ValueError, TypeError):
+                                            # Non-numeric comparison fallback
+                                            if original_val == mail_val:
+                                                styles[mail_col_idx] = 'color: green; font-weight: bold'
+                                            else:
+                                                styles[mail_col_idx] = 'color: red; font-weight: bold'
+                                    else:
+                                        # Non-numeric fields - exact match comparison
+                                        if original_val == mail_val:
+                                            styles[mail_col_idx] = 'color: green; font-weight: bold'
+                                        else:
+                                            styles[mail_col_idx] = 'color: red; font-weight: bold'
                                 except KeyError:
                                     continue
                     
