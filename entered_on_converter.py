@@ -170,20 +170,31 @@ def process_entered_on_report(file_path, output_csv_path=None):
             filtered_room_move_count = len(df)
             logger.info(f"Filtered out {room_move_count - filtered_room_move_count} records with guest name containing 'room move'")
         
-        # Also filter by FIRST NAME column if it exists
+        # Also filter by FIRST NAME column if it exists and standardize column name
         if 'FIRST NAME' in df.columns:
             first_name_count = len(df)
             df = df[~df['FIRST NAME'].str.contains('room move', case=False, na=False)]
             filtered_first_name_count = len(df)
             logger.info(f"Filtered out {first_name_count - filtered_first_name_count} additional records with first name containing 'room move'")
+            
+            # Standardize column name to FIRST_NAME (no space)
+            df['FIRST_NAME'] = df['FIRST NAME']
+            df = df.drop(columns=['FIRST NAME'])
+        elif 'FIRST_NAME' not in df.columns:
+            # If no FIRST_NAME column exists, create one as N/A
+            df['FIRST_NAME'] = 'N/A'
         
-        # Convert date columns to datetime then format as dd/mm/yyyy for display
-        df['ARRIVAL'] = pd.to_datetime(df['ARRIVAL'])
-        df['DEPARTURE'] = pd.to_datetime(df['DEPARTURE'])
+        # Convert date columns to datetime with dayfirst=True to handle dd/mm/yyyy format
+        df['ARRIVAL'] = pd.to_datetime(df['ARRIVAL'], dayfirst=True)
+        df['DEPARTURE'] = pd.to_datetime(df['DEPARTURE'], dayfirst=True)
         
-        # Create formatted date columns for display (dd/mm/yyyy format)
-        df['ARRIVAL_FORMATTED'] = df['ARRIVAL'].dt.strftime('%d/%m/%Y')
-        df['DEPARTURE_FORMATTED'] = df['DEPARTURE'].dt.strftime('%d/%m/%Y')
+        # Replace the original columns with dd/mm/yyyy formatted strings
+        df['ARRIVAL'] = df['ARRIVAL'].dt.strftime('%d/%m/%Y')
+        df['DEPARTURE'] = df['DEPARTURE'].dt.strftime('%d/%m/%Y')
+        
+        # Convert back to datetime for calculations but keep formatted strings for display
+        df['ARRIVAL_DT'] = pd.to_datetime(df['ARRIVAL'], dayfirst=True)
+        df['DEPARTURE_DT'] = pd.to_datetime(df['DEPARTURE'], dayfirst=True)
         
         # Keep NET column as original - don't modify it
         
@@ -197,7 +208,7 @@ def process_entered_on_report(file_path, output_csv_path=None):
         
         # Calculate additional fields (check if Season column already exists)
         if 'Season' not in df.columns:
-            df['SEASON'] = df['ARRIVAL'].apply(determine_season)
+            df['SEASON'] = df['ARRIVAL_DT'].apply(determine_season)
         else:
             # Use existing Season column and clean it
             df['SEASON'] = df['Season'].fillna('Unknown')
@@ -207,8 +218,8 @@ def process_entered_on_report(file_path, output_csv_path=None):
         expanded_rows = []
         
         for _, row in df.iterrows():
-            arrival = row['ARRIVAL']
-            departure = row['DEPARTURE']
+            arrival = row['ARRIVAL_DT']  # Use datetime version for calculations
+            departure = row['DEPARTURE_DT']  # Use datetime version for calculations
             total_amount = row['AMOUNT'] if pd.notna(row['AMOUNT']) else 0
             total_nights = row['NIGHTS'] if pd.notna(row['NIGHTS']) else 0
             adr_multiplied = row['ADR'] if pd.notna(row['ADR']) else 0  # ADR is already multiplied by 1.1

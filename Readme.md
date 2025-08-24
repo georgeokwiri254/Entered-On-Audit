@@ -8,7 +8,6 @@ Here’s the **10-point workflow with Streamlit + Python**:
 
 ---
 
-
 **#  📂 Excel Import**
 
 * User uploads `.xlsm` in Streamlit.
@@ -22,7 +21,7 @@ Here’s the **10-point workflow with Streamlit + Python**:
    * Use Python’s Win32  to connect to the mailbox.
    * Search last **2 days**:
 
-     mail.search(None, 
+     mail.search(None,
    * Fetch all emails, filter by subject/body containing `guest name` or `reservation number`.
 
 ---
@@ -111,15 +110,21 @@ Here’s the **10-point workflow with Streamlit + Python**:
 
 **Rate structure**
 
-TDF - Number of nights *20 or 40 for Two Bedroom Apartment (2BA). for 30 days and above it is 30**20 or 40 depeding on room type 
+TDF - Number of nights *20 or 40 for Two Bedroom Apartment (2BA). for 30 days and above it is 30**20 or 40 depeding on room type
 
-Net- Rate with Taxes excluding TDF 
+Net- Rate with Taxes excluding TDF
 
 Total- Rate with Taxes and TDF
 
 Amount- Rate without Taxes
 
 ADR- Average daily rate Rate without taxes
+
+# OTA Reservations
+
+1. Bookings from T- Booking.com, T- Expedia, T- Agoda.com Company, Brand.com
+2. Bookings from *INNLINK2WAY under the  under the INSERT_USER label will be from noreply-reservations@millenniumhotels.com email
+3. 
 
 ---
 

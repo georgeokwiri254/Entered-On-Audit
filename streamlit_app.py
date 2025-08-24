@@ -169,10 +169,17 @@ def extract_reservation_fields(text, sender_email=""):
     for date_field in ['ARRIVAL', 'DEPARTURE', 'ARRIVAL_SUBJECT']:
         if date_field in extracted and extracted[date_field] != 'N/A':
             try:
+                # Always use dayfirst=True to ensure dd/mm/yyyy interpretation
                 parsed_date = pd.to_datetime(extracted[date_field], dayfirst=True)
                 extracted[date_field] = parsed_date.strftime('%d/%m/%Y')
             except:
-                pass  # Keep original value if parsing fails
+                # If parsing fails, try different formats
+                try:
+                    # Try mm/dd/yyyy format as fallback
+                    parsed_date = pd.to_datetime(extracted[date_field], dayfirst=False)
+                    extracted[date_field] = parsed_date.strftime('%d/%m/%Y')
+                except:
+                    pass  # Keep original value if all parsing fails
     
     # Use arrival from subject if main arrival not found
     if extracted.get('ARRIVAL', 'N/A') == 'N/A' and extracted.get('ARRIVAL_SUBJECT', 'N/A') != 'N/A':
@@ -253,7 +260,7 @@ def get_current_mailbox_info(outlook, namespace):
 
 def search_all_folders_in_mailbox(store, guest_name, first_name="", days=2):
     """Search specific folders in the current mailbox for a specific guest
-    Focus on: 2025\\Aug, 2025\\July, Groups, Inbox folders"""
+    Focus on: 2025\\Aug, 2025\\July, Groups, 0 OTA Notification, Inbox folders"""
     all_matching_emails = []
     
     def search_folder_recursive(folder, depth=0):
@@ -270,10 +277,11 @@ def search_all_folders_in_mailbox(store, guest_name, first_name="", days=2):
             # Check if this folder should be searched based on priority folders
             should_search = False
             
-            # Priority folders: Inbox, Sent Items, Groups, and specific 2025 subfolders
+            # Priority folders: Inbox, Sent Items, Groups, 0 OTA Notification, and specific 2025 subfolders
             if ('inbox' in folder_name or 
                 'sent items' in folder_name or 
                 'groups' in folder_name or 
+                '0 ota notification' in folder_name or
                 ('2025' in folder_path and ('aug' in folder_path or 'july' in folder_path))):
                 should_search = True
                 logger.info(f"Searching priority folder: {folder.FolderPath}")
@@ -525,7 +533,7 @@ def perform_audit_checks(df, email_data=None):
     df_audit['email_vs_data_status'] = 'N/A'
     
     # Initialize Mail_ columns with N/A
-    mail_fields = ['ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 
+    mail_fields = ['FIRST_NAME', 'ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 
                  'RATE_CODE', 'C_T_S', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT']
     
     for field in mail_fields:
@@ -544,6 +552,7 @@ def perform_audit_checks(df, email_data=None):
         # Check 1: NIGHTS = Departure - Arrival (using dd/mm/yyyy format)
         if pd.notna(row['ARRIVAL']) and pd.notna(row['DEPARTURE']):
             try:
+                # Always use dayfirst=True for dd/mm/yyyy format
                 arrival = pd.to_datetime(row['ARRIVAL'], dayfirst=True)
                 departure = pd.to_datetime(row['DEPARTURE'], dayfirst=True)
                 calculated_nights = (departure - arrival).days
@@ -598,7 +607,7 @@ def perform_audit_checks(df, email_data=None):
                     email_fields.update(email['extracted_data'])
             
             # ADD MAIL_ COLUMNS TO AUDIT DATAFRAME
-            mail_fields = ['ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 
+            mail_fields = ['FIRST_NAME', 'ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 
                          'RATE_CODE', 'C_T_S', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT']
             
             for field in mail_fields:
@@ -606,7 +615,7 @@ def perform_audit_checks(df, email_data=None):
                 df_audit.at[idx, mail_col] = email_fields.get(field, 'N/A')
             
             # Compare fields between email extraction and converted data
-            comparison_fields = ['FULL_NAME', 'ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM']
+            comparison_fields = ['FULL_NAME', 'FIRST_NAME', 'ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM']
             matching_fields = 0
             total_comparable_fields = 0
             
@@ -620,6 +629,7 @@ def perform_audit_checks(df, email_data=None):
                     # Normalize for comparison
                     if field in ['ARRIVAL', 'DEPARTURE']:
                         try:
+                            # Always use dayfirst=True for dd/mm/yyyy format
                             email_date = pd.to_datetime(email_value, dayfirst=True).strftime('%d/%m/%Y')
                             data_date = pd.to_datetime(data_value, dayfirst=True).strftime('%d/%m/%Y')
                             if email_date == data_date:
@@ -707,7 +717,7 @@ def main():
     st.sidebar.header("📧 Outlook Configuration")
     st.sidebar.info("This app connects to your local Outlook installation")
     st.sidebar.info("🗓️ Searches last 2 days automatically")
-    st.sidebar.info("📂 Focus: 2025\\Aug, 2025\\July, Groups, Inbox, Sent Items folders")
+    st.sidebar.info("📂 Focus: 2025\\Aug, 2025\\July, Groups, 0 OTA Notification, Inbox, Sent Items folders")
     st.sidebar.info("💱 All amounts displayed in AED only")
     
     # Hardcode days to 2
@@ -889,7 +899,7 @@ def main():
                     row_data[field] = value
                 
                 # Add corresponding Mail_ columns for extracted email data
-                mail_fields = ['ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 'RATE_CODE', 
+                mail_fields = ['FIRST_NAME', 'ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 'RATE_CODE', 
                              'C_T_S', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT', 'SEASON']
                 for field in mail_fields:
                     mail_value = email_data.get(field, 'N/A')
@@ -1071,8 +1081,8 @@ def main():
                 # ARRIVAL, Mail_ARRIVAL, DEPARTURE, Mail_DEPARTURE, etc.
                 display_columns = []
                 
-                # Start with name columns
-                display_columns.extend(['FULL_NAME', 'FIRST_NAME'])
+                # Start with name columns - side by side pairs
+                display_columns.extend(['FULL_NAME', 'FIRST_NAME', 'Mail_FIRST_NAME'])
                 
                 # Create immediate side-by-side pairs: FIELD, Mail_FIELD
                 comparison_fields = ['ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 
@@ -1093,7 +1103,7 @@ def main():
                     styles = [''] * len(row)
                     
                     # Define comparison fields locally
-                    comparison_fields_local = ['ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 
+                    comparison_fields_local = ['FIRST_NAME', 'ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 
                                              'RATE_CODE', 'C_T_S', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT']
                     
                     # Compare each field with its Mail_ counterpart
