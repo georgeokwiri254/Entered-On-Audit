@@ -302,7 +302,7 @@ class AuditDatabase:
                         'booking_lead_time': row.get('BOOKING_LEAD_TIME', 0),
                         'events_dates': row.get('EVENTS_DATES', ''),
                         'resv_id': row.get('RESV ID', ''),
-                        'raw_data': json.dumps(row.to_dict())  # Store full row as JSON
+                        'raw_data': json.dumps(self._serialize_pandas_row(row))  # Store full row as JSON
                     }
                     records.append(record)
                 
@@ -360,7 +360,7 @@ class AuditDatabase:
                             'mail_adr': self._parse_float(extracted_data.get('ADR', 0)),
                             'mail_amount': self._parse_float(extracted_data.get('AMOUNT', 0)),
                             'pdf_attachment_count': len([att for att in email.get('attachments', []) if att.get('filename', '').lower().endswith('.pdf')]),
-                            'raw_email_data': json.dumps(email)
+                            'raw_email_data': json.dumps(self._serialize_email_data(email))
                         }
                         
                         placeholders = ', '.join(['?' for _ in record.keys()])
@@ -441,7 +441,7 @@ class AuditDatabase:
                         'total_email_fields': row.get('total_email_fields', 0),
                         'match_percentage': row.get('match_percentage', 0.0),
                         'email_vs_data_status': row.get('email_vs_data_status', 'N/A'),
-                        'raw_audit_data': json.dumps(row.to_dict())
+                        'raw_audit_data': json.dumps(self._serialize_pandas_row(row))
                     }
                     records.append(record)
                 
@@ -483,6 +483,36 @@ class AuditDatabase:
             return float(value)
         except (ValueError, TypeError):
             return 0.0
+    
+    def _serialize_pandas_row(self, row) -> dict:
+        """Helper to serialize pandas row to JSON-compatible dict, handling Timestamps"""
+        result = {}
+        for key, value in row.to_dict().items():
+            if pd.isna(value):
+                result[key] = None
+            elif hasattr(value, 'isoformat'):  # datetime/Timestamp objects
+                result[key] = value.isoformat()
+            elif isinstance(value, (pd.Timestamp, datetime)):
+                result[key] = str(value)
+            else:
+                result[key] = value
+        return result
+    
+    def _serialize_email_data(self, email_data) -> dict:
+        """Helper to serialize email data to JSON-compatible dict, handling datetime objects"""
+        result = {}
+        for key, value in email_data.items():
+            if hasattr(value, 'isoformat'):  # datetime/Timestamp objects
+                result[key] = value.isoformat()
+            elif isinstance(value, (pd.Timestamp, datetime)):
+                result[key] = str(value)
+            elif isinstance(value, dict):
+                result[key] = self._serialize_email_data(value)  # Recursive for nested dicts
+            elif isinstance(value, list):
+                result[key] = [self._serialize_email_data(item) if isinstance(item, dict) else item for item in value]
+            else:
+                result[key] = value
+        return result
     
     def get_recent_runs(self, limit: int = 10) -> pd.DataFrame:
         """Get recent audit runs"""
