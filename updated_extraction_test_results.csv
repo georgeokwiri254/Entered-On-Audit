@@ -1,0 +1,16 @@
+Field,Extracted_Value,Formatted_Value,Status
+METADATA,Updated T-Booking.com Logic Applied,Sender: noreply-reservations@millenniumhotels.com,Processed: 2025-08-25 14:11:52
+MAIL_FIRST_NAME,KAPIL,KAPIL,Found
+MAIL_FULL_NAME,BARI,BARI,Found
+MAIL_ARRIVAL,04/09/2025,04/09/2025,Found
+MAIL_DEPARTURE,03/10/2025,03/10/2025,Found
+MAIL_NIGHTS,29,29,Found
+MAIL_PERSONS,1,1,Found
+MAIL_ROOM,SK,SK,Found
+MAIL_RATE_CODE,WH07918R,WH07918R,Found
+MAIL_C_T_S,Booking.com,Booking.com,Found
+MAIL_NET_TOTAL,9777.47,"AED 9,777.47",Found
+MAIL_TOTAL,10357.47,"AED 10,357.47",Found
+MAIL_TDF,580,AED 580.00,Found
+MAIL_ADR,275.23,AED 275.23,Found
+MAIL_AMOUNT,7981.61,"AED 7,981.61",Found

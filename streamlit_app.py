@@ -24,6 +24,142 @@ import pythoncom
 from entered_on_converter import process_entered_on_report, get_summary_stats
 from database_operations import AuditDatabase
 
+# ** RULE ENGINE FOR TRAVEL AGENCY DETECTION **
+def get_travel_agency_rule(c_t_s_name, sender_email="", text=""):
+    """
+    Determine which parser rule to use based on Travel Agency C_T_S name and content
+    Returns: (rule_type, parser_path, insert_user)
+    """
+    
+    # Clean the C_T_S name for comparison
+    c_t_s_clean = str(c_t_s_name).strip() if c_t_s_name else ""
+    
+    # INNLINKWAY Rules - for C_T_S names starting with "T-"
+    if c_t_s_clean.startswith("T-") or "noreply-reservations@millenniumhotels.com" in sender_email.lower():
+        insert_user = "*INNLINK2WAY*"
+        
+        # T-Agoda
+        if ("agoda" in c_t_s_clean.lower() or 
+            "agoda" in text.lower() or 
+            "t- agoda" in text.lower()):
+            return ("INNLINKWAY_AGODA", "Rules/INNLINKWAY/Agoda", insert_user)
+        
+        # T-Booking.com
+        elif ("booking.com" in c_t_s_clean.lower() or 
+              "booking.com" in text.lower() or 
+              "t- booking.com" in text.lower()):
+            return ("INNLINKWAY_BOOKING", "Rules/INNLINKWAY/Booking.com", insert_user)
+        
+        # T-Brand.com
+        elif ("brand.com" in c_t_s_clean.lower() or 
+              "brand.com" in text.lower() or 
+              "t- brand.com" in text.lower()):
+            return ("INNLINKWAY_BRAND", "Rules/INNLINKWAY/Brand.com", insert_user)
+        
+        # T-Expedia
+        elif ("expedia" in c_t_s_clean.lower() or 
+              "expedia" in text.lower() or 
+              "t- expedia" in text.lower()):
+            return ("INNLINKWAY_EXPEDIA", "Rules/INNLINKWAY/Expedia", insert_user)
+        
+        # Default INNLINKWAY rule (fallback to Brand.com logic)
+        else:
+            return ("INNLINKWAY_DEFAULT", "Rules/INNLINKWAY/Brand.com", insert_user)
+    
+    # Travel Agency Rules - Traditional travel agencies
+    elif c_t_s_clean:
+        insert_user = c_t_s_clean  # Use actual company name as INSERT_USER
+        
+        # Travco
+        if ("travco" in c_t_s_clean.lower() or 
+            "travco.co.uk" in sender_email.lower() or
+            "hotel booking confirmation" in text.lower()):
+            return ("TRAVEL_AGENCY_TRAVCO", "Rules/Travel Agency TO/Travco", insert_user)
+        
+        # Dubai Link
+        elif ("dubai link" in c_t_s_clean.lower() or 
+              "gte.travel" in sender_email.lower() or
+              "dubai link" in text.lower()):
+            return ("TRAVEL_AGENCY_DUBAI_LINK", "Rules/Travel Agency TO/Dubai Link", insert_user)
+        
+        # Nirvana
+        elif ("nirvana" in c_t_s_clean.lower() or 
+              "nirvana" in sender_email.lower() or
+              "booking confirmed" in text.lower()):
+            return ("TRAVEL_AGENCY_NIRVANA", "Rules/Travel Agency TO/Nirvana", insert_user)
+        
+        # Dakkak DMC / Duri Travel
+        elif ("dakkak" in c_t_s_clean.lower() or 
+              "dakkak" in sender_email.lower() or
+              "dakkak dmc" in text.lower()):
+            return ("TRAVEL_AGENCY_DAKKAK", "Rules/Travel Agency TO/Dakkak", insert_user)
+        
+        # Duri
+        elif ("duri" in c_t_s_clean.lower() or 
+              "hanmail.net" in sender_email.lower() or
+              "duri travel" in text.lower()):
+            return ("TRAVEL_AGENCY_DURI", "Rules/Travel Agency TO/Duri", insert_user)
+        
+        # AlKhalidiah
+        elif ("alkhalidiah" in c_t_s_clean.lower() or 
+              "alkhalidiah.com" in sender_email.lower() or
+              "al khalidiah" in text.lower()):
+            return ("TRAVEL_AGENCY_ALKHALIDIAH", "Rules/Travel Agency TO/AlKhalidiah", insert_user)
+        
+        # Desert Adventures
+        elif ("desert adventures" in c_t_s_clean.lower() or
+              "allocation notification" in text.lower()):
+            return ("TRAVEL_AGENCY_DESERT_ADVENTURES", "Rules/Travel Agency TO/Desert Adventures", insert_user)
+        
+        # Desert Gate
+        elif ("desert gate" in c_t_s_clean.lower() or
+              "dgt" in sender_email.lower() or
+              "booking notification" in text.lower()):
+            return ("TRAVEL_AGENCY_DESERT_GATE", "Rules/Travel Agency TO/Desert Gate", insert_user)
+        
+        # Darina
+        elif ("darina" in c_t_s_clean.lower() or
+              "booking form" in text.lower()):
+            return ("TRAVEL_AGENCY_DARINA", "Rules/Travel Agency TO/Darina", insert_user)
+        
+        # Ease My Trip
+        elif ("ease my trip" in c_t_s_clean.lower() or
+              "paid booking" in text.lower()):
+            return ("TRAVEL_AGENCY_EASE_MY_TRIP", "Rules/Travel Agency TO/Ease My Trip", insert_user)
+        
+        # Almosafer
+        elif ("almosafer" in c_t_s_clean.lower() or
+              "confirmed booking" in text.lower()):
+            return ("TRAVEL_AGENCY_ALMOSAFER", "Rules/Travel Agency TO/Almosafer", insert_user)
+        
+        # Generic Travel Agency - fallback
+        else:
+            return ("TRAVEL_AGENCY_GENERIC", None, insert_user)
+    
+    # Airlines Rules
+    elif ("china southern" in text.lower() or 
+          "c- china southern" in text.lower()):
+        return ("AIRLINES_CHINA_SOUTHERN", "Rules/Airlines/China Air", "China Southern Air")
+    
+    # UPS Airlines
+    elif ("ups" in c_t_s_clean.lower() or 
+          "ups" in text.lower()):
+        return ("AIRLINES_UPS", "Rules/Airlines/UPS", "UPS Airlines")
+    
+    # ASL Airlines
+    elif ("asl" in c_t_s_clean.lower() or 
+          "asl" in text.lower()):
+        return ("AIRLINES_ASL", "Rules/Airlines/ASL", "ASL Airlines")
+    
+    # Corporate or Group Rate
+    elif ("corporate" in c_t_s_clean.lower() or 
+          "grp" in c_t_s_clean.lower()):
+        return ("CORPORATE_RATE", "Rules/Corporate COR", c_t_s_clean)
+    
+    # Default - no specific rule
+    else:
+        return ("DEFAULT", None, "MANUAL_ENTRY")
+
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -67,18 +203,33 @@ def connect_to_outlook():
         return None, None
 
 def extract_pdf_text(pdf_bytes):
-    """Extract text from PDF bytes with enhanced error handling"""
+    """Extract text from PDF bytes with enhanced error handling and performance optimizations"""
     try:
+        # Skip very large PDFs (> 5MB) to avoid performance issues
+        if len(pdf_bytes) > 5 * 1024 * 1024:
+            logger.warning(f"Skipping large PDF ({len(pdf_bytes) / (1024*1024):.1f}MB) - too large for processing")
+            return ""
+        
         pdf_file = io.BytesIO(pdf_bytes)
         text = ""
         
         with pdfplumber.open(pdf_file) as pdf:
-            logger.info(f"PDF has {len(pdf.pages)} pages")
-            for page_num, page in enumerate(pdf.pages):
+            page_count = len(pdf.pages)
+            logger.info(f"PDF has {page_count} pages")
+            
+            # Limit processing to first 3 pages for performance
+            max_pages = min(3, page_count)
+            
+            for page_num, page in enumerate(pdf.pages[:max_pages]):
                 try:
                     page_text = page.extract_text()
                     if page_text:
                         text += f"\n--- Page {page_num + 1} ---\n{page_text}"
+                        
+                        # Early exit if we found China Southern Air on first page
+                        if page_num == 0 and ("china southern" in page_text.lower() or "c- china southern" in page_text.lower()):
+                            logger.info("Found China Southern Air on first page - processing first page only")
+                            break
                     else:
                         logger.warning(f"No text extracted from page {page_num + 1}")
                 except Exception as e:
@@ -94,73 +245,465 @@ def extract_pdf_text(pdf_bytes):
         logger.error(f"PDF extraction failed: {e}")
         return ""
 
-def extract_reservation_fields(text, sender_email=""):
-    """Extract reservation fields using regex patterns"""
+# Compile regex patterns once for better performance
+import re
+
+# Pre-compiled patterns for different email types
+NOREPLY_PATTERNS = {
+    'GUEST_NAME_FULL': re.compile(r"Guest Name:\s*(.+?)(?:\n|Address:)", re.IGNORECASE),
+    'ARRIVAL': re.compile(r"Arrive:\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})", re.IGNORECASE),
+    'DEPARTURE': re.compile(r"Depart:\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})", re.IGNORECASE),
+    'NIGHTS': re.compile(r"Total Nights\s*(\d+)\s*night", re.IGNORECASE),
+    'PERSONS': re.compile(r"Adult/Children:\s*(\d+)/\d+", re.IGNORECASE),
+    'ROOM_TYPE': re.compile(r"Room Type:\s*(.+?)(?:\n|Rate|$)|(Superior Room|Deluxe Room|Standard Room|Executive Room|Studio with One King Bed)", re.IGNORECASE),
+    'RATE_CODE': re.compile(r"Rate Code:\s*([A-Z0-9]+)", re.IGNORECASE),
+    'RATE_NAME': re.compile(r"Rate Name:\s*(.+?)(?:\n|Rate Code:)", re.IGNORECASE),
+    'COMPANY': re.compile(r"Travel Agent\s*(?:.*\n)*Name:\s*(.+?)(?:\n|$)", re.IGNORECASE | re.DOTALL),
+    'NET_TOTAL': re.compile(r"Total charges:\s*AED\s*([0-9,]+\.?[0-9]*)", re.IGNORECASE),
+    'CONFIRMATION': re.compile(r"Confirman:\s*([A-Z0-9]+)", re.IGNORECASE),
+    'ARRIVAL_SUBJECT': re.compile(r"Arrival Date[:]*\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})", re.IGNORECASE),
+    'CONFIRMATION_SUBJECT': re.compile(r"confirmation number[:]*\s*([A-Z0-9]+)", re.IGNORECASE),
+}
+
+CHINA_SOUTHERN_PATTERNS = {
+    'FULL_NAME': re.compile(r"(?:Passenger Name|Guest Name|Name)[:\s]*([A-Z][A-Za-z\s]+)(?:\n|Cabin|Flight)", re.IGNORECASE),
+    'FIRST_NAME': re.compile(r"(?:First Name|Given Name)[:\s]*([A-Za-z]+)", re.IGNORECASE),
+    'ARRIVAL': re.compile(r"(?:Arrival Date|Check.?in|Arrival)[:\s]*(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})", re.IGNORECASE),
+    'DEPARTURE': re.compile(r"(?:Departure Date|Check.?out|Departure)[:\s]*(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})", re.IGNORECASE),
+    'NIGHTS': re.compile(r"(?:Nights?|Night Stay|Duration)[:\s]*(\d+)", re.IGNORECASE),
+    'PERSONS': re.compile(r"(?:Passengers?|Guests?|Adults?|Pax)[:\s]*(\d+)", re.IGNORECASE),
+    'ROOM': re.compile(r"(?:Room Type|Cabin|Accommodation)[:\s]*([A-Z0-9\s]+)", re.IGNORECASE),
+    'RATE_CODE': re.compile(r"(?:Rate Code|Booking Code|Reference)[:\s]*([A-Z0-9]+)", re.IGNORECASE),
+    'NET_TOTAL': re.compile(r"(?:Total Cost|Total Amount|Net Total|Total)[:\s]*(?:AED|USD)?\s*([0-9,]+\.?[0-9]*)", re.IGNORECASE),
+    'CONFIRMATION': re.compile(r"(?:PNR|Confirmation|Booking Reference)[:\s]*([A-Z0-9]+)", re.IGNORECASE),
+    'FLIGHT': re.compile(r"(?:Flight|Flight Number)[:\s]*([A-Z0-9]+)", re.IGNORECASE),
+}
+
+DEFAULT_PATTERNS = {
+    'FULL_NAME': re.compile(r"(?:Name|Guest Name)[:\s]+(.+?)(?:\n|$)", re.IGNORECASE),
+    'FIRST_NAME': re.compile(r"(?:First Name)[:\s]+(.+?)(?:\n|$)", re.IGNORECASE),
+    'ARRIVAL': re.compile(r"(?:Arrival|Check-in)[:\s]+(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})", re.IGNORECASE),
+    'DEPARTURE': re.compile(r"(?:Departure|Check-out)[:\s]+(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})", re.IGNORECASE),
+    'NIGHTS': re.compile(r"(?:Nights|Night)[:\s]+(\d+)", re.IGNORECASE),
+    'PERSONS': re.compile(r"(?:Persons|Guest|Adults?)[:\s]+(\d+)", re.IGNORECASE),
+    'ROOM': re.compile(r"(?:Room|Room Type)[:\s]+(.+?)(?:\n|$)", re.IGNORECASE),
+    'RATE_CODE': re.compile(r"(?:Rate Code|Rate)[:\s]+(.+?)(?:\n|$)", re.IGNORECASE),
+    'COMPANY': re.compile(r"(?:Company|Agency)[:\s]+(.+?)(?:\n|$)", re.IGNORECASE),
+    'NET_TOTAL': re.compile(r"(?:Total|Net Total|Amount|Net Amount)[:\s]+(?:AED\s*)?([\\d,]+\.?\\d*)", re.IGNORECASE),
+}
+
+def extract_reservation_fields(text, sender_email="", c_t_s_name=""):
+    """Extract reservation fields using rule-based parser selection for better performance"""
     
-    # Different patterns for different email sources
+    # Use rule engine to determine which parser to use
+    rule_type, parser_path, insert_user = get_travel_agency_rule(c_t_s_name, sender_email, text)
+    
+    # Log the rule selection for debugging
+    logger.info(f"Rule engine selected: {rule_type} for C_T_S: {c_t_s_name}, Email: {sender_email}")
+    
+    # Check for Travco emails first
+    if "travco.co.uk" in sender_email.lower() or "travco@travco" in sender_email.lower() or "hotel booking confirmation" in text.lower():
+        # Import Travco parser
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), 'Rules', 'Travel Agency TO', 'Travco'))
+        try:
+            from travco_parser import extract_travco_fields, is_travco_email
+            
+            if is_travco_email(sender_email, text):
+                travco_fields = extract_travco_fields(text, "")
+                # Map Travco fields to the expected field names used in the app
+                mapped_fields = {
+                    'FIRST_NAME': travco_fields.get('MAIL_FIRST_NAME', 'N/A'),
+                    'FULL_NAME': travco_fields.get('MAIL_FULL_NAME', 'N/A'),
+                    'ARRIVAL': travco_fields.get('MAIL_ARRIVAL', 'N/A'),
+                    'DEPARTURE': travco_fields.get('MAIL_DEPARTURE', 'N/A'),
+                    'NIGHTS': travco_fields.get('MAIL_NIGHTS', 'N/A'),
+                    'PERSONS': travco_fields.get('MAIL_PERSONS', 'N/A'),
+                    'ROOM': travco_fields.get('MAIL_ROOM', 'N/A'),
+                    'RATE_CODE': travco_fields.get('MAIL_RATE_CODE', 'N/A'),
+                    'C_T_S': travco_fields.get('MAIL_C_T_S', 'N/A'),
+                    'C_T_S_NAME': travco_fields.get('MAIL_C_T_S', 'N/A'),
+                    'NET_TOTAL': travco_fields.get('MAIL_NET_TOTAL', 'N/A'),
+                    'TOTAL': travco_fields.get('MAIL_TOTAL', 'N/A'),
+                    'TDF': travco_fields.get('MAIL_TDF', 'N/A'),
+                    'ADR': travco_fields.get('MAIL_ADR', 'N/A'),
+                    'AMOUNT': travco_fields.get('MAIL_AMOUNT', 'N/A'),
+                    # Add formatted currency versions
+                    'NET_TOTAL_AED': f"AED {travco_fields.get('MAIL_NET_TOTAL', 0):,.2f}" if travco_fields.get('MAIL_NET_TOTAL', 'N/A') != 'N/A' else 'N/A',
+                    'TOTAL_AED': f"AED {travco_fields.get('MAIL_TOTAL', 0):,.2f}" if travco_fields.get('MAIL_TOTAL', 'N/A') != 'N/A' else 'N/A',
+                    'TDF_AED': f"AED {travco_fields.get('MAIL_TDF', 0):,.2f}" if travco_fields.get('MAIL_TDF', 'N/A') != 'N/A' else 'N/A',
+                    'ADR_AED': f"AED {travco_fields.get('MAIL_ADR', 0):,.2f}" if travco_fields.get('MAIL_ADR', 'N/A') != 'N/A' else 'N/A',
+                    'AMOUNT_AED': f"AED {travco_fields.get('MAIL_AMOUNT', 0):,.2f}" if travco_fields.get('MAIL_AMOUNT', 'N/A') != 'N/A' else 'N/A'
+                }
+                return mapped_fields
+        except ImportError:
+            logger.warning("Travco parser not found, falling back to default patterns")
+    
+    # Check for Dubai Link emails
+    if "gte.travel" in sender_email.lower() or "dubai link" in text.lower():
+        # Import Dubai Link parser
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), 'Rules', 'Travel Agency TO', 'Dubai Link'))
+        try:
+            from dubai_link_parser import extract_dubai_link_fields, is_dubai_link_email
+            
+            if is_dubai_link_email(sender_email, text):
+                dubai_fields = extract_dubai_link_fields(text, "")
+                # Map Dubai Link fields to the expected field names used in the app
+                mapped_fields = {
+                    'FIRST_NAME': dubai_fields.get('MAIL_FIRST_NAME', 'N/A'),
+                    'FULL_NAME': dubai_fields.get('MAIL_FULL_NAME', 'N/A'),
+                    'ARRIVAL': dubai_fields.get('MAIL_ARRIVAL', 'N/A'),
+                    'DEPARTURE': dubai_fields.get('MAIL_DEPARTURE', 'N/A'),
+                    'NIGHTS': dubai_fields.get('MAIL_NIGHTS', 'N/A'),
+                    'PERSONS': dubai_fields.get('MAIL_PERSONS', 'N/A'),
+                    'ROOM': dubai_fields.get('MAIL_ROOM', 'N/A'),
+                    'RATE_CODE': dubai_fields.get('MAIL_RATE_CODE', 'N/A'),
+                    'C_T_S': dubai_fields.get('MAIL_C_T_S', 'N/A'),
+                    'C_T_S_NAME': dubai_fields.get('MAIL_C_T_S', 'N/A'),
+                    'NET_TOTAL': dubai_fields.get('MAIL_NET_TOTAL', 'N/A'),
+                    'TOTAL': dubai_fields.get('MAIL_TOTAL', 'N/A'),
+                    'TDF': dubai_fields.get('MAIL_TDF', 'N/A'),
+                    'ADR': dubai_fields.get('MAIL_ADR', 'N/A'),
+                    'AMOUNT': dubai_fields.get('MAIL_AMOUNT', 'N/A'),
+                    # Add formatted currency versions
+                    'NET_TOTAL_AED': f"AED {dubai_fields.get('MAIL_NET_TOTAL', 0):,.2f}" if dubai_fields.get('MAIL_NET_TOTAL', 'N/A') != 'N/A' else 'N/A',
+                    'TOTAL_AED': f"AED {dubai_fields.get('MAIL_TOTAL', 0):,.2f}" if dubai_fields.get('MAIL_TOTAL', 'N/A') != 'N/A' else 'N/A',
+                    'TDF_AED': f"AED {dubai_fields.get('MAIL_TDF', 0):,.2f}" if dubai_fields.get('MAIL_TDF', 'N/A') != 'N/A' else 'N/A',
+                    'ADR_AED': f"AED {dubai_fields.get('MAIL_ADR', 0):,.2f}" if dubai_fields.get('MAIL_ADR', 'N/A') != 'N/A' else 'N/A',
+                    'AMOUNT_AED': f"AED {dubai_fields.get('MAIL_AMOUNT', 0):,.2f}" if dubai_fields.get('MAIL_AMOUNT', 'N/A') != 'N/A' else 'N/A'
+                }
+                return mapped_fields
+        except ImportError:
+            logger.warning("Dubai Link parser not found, falling back to default patterns")
+    
+    # Check for Nirvana emails
+    if "nirvana" in sender_email.lower() or "booking confirmed" in text.lower() or "sb25" in text.lower():
+        # Import Nirvana parser
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), 'Rules', 'Travel Agency TO', 'Nirvana'))
+        try:
+            from nirvana_parser import extract_nirvana_fields, is_nirvana_email
+            
+            if is_nirvana_email(sender_email, text):
+                nirvana_fields = extract_nirvana_fields(text, "")
+                # Map Nirvana fields to the expected field names used in the app
+                mapped_fields = {
+                    'FIRST_NAME': nirvana_fields.get('MAIL_FIRST_NAME', 'N/A'),
+                    'FULL_NAME': nirvana_fields.get('MAIL_FULL_NAME', 'N/A'),
+                    'ARRIVAL': nirvana_fields.get('MAIL_ARRIVAL', 'N/A'),
+                    'DEPARTURE': nirvana_fields.get('MAIL_DEPARTURE', 'N/A'),
+                    'NIGHTS': nirvana_fields.get('MAIL_NIGHTS', 'N/A'),
+                    'PERSONS': nirvana_fields.get('MAIL_PERSONS', 'N/A'),
+                    'ROOM': nirvana_fields.get('MAIL_ROOM', 'N/A'),
+                    'RATE_CODE': nirvana_fields.get('MAIL_RATE_CODE', 'N/A'),
+                    'C_T_S': nirvana_fields.get('MAIL_C_T_S', 'N/A'),
+                    'C_T_S_NAME': nirvana_fields.get('MAIL_C_T_S', 'N/A'),
+                    'NET_TOTAL': nirvana_fields.get('MAIL_NET_TOTAL', 'N/A'),
+                    'TOTAL': nirvana_fields.get('MAIL_TOTAL', 'N/A'),
+                    'TDF': nirvana_fields.get('MAIL_TDF', 'N/A'),
+                    'ADR': nirvana_fields.get('MAIL_ADR', 'N/A'),
+                    'AMOUNT': nirvana_fields.get('MAIL_AMOUNT', 'N/A'),
+                    # Add formatted currency versions
+                    'NET_TOTAL_AED': f"AED {nirvana_fields.get('MAIL_NET_TOTAL', 0):,.2f}" if nirvana_fields.get('MAIL_NET_TOTAL', 'N/A') != 'N/A' else 'N/A',
+                    'TOTAL_AED': f"AED {nirvana_fields.get('MAIL_TOTAL', 0):,.2f}" if nirvana_fields.get('MAIL_TOTAL', 'N/A') != 'N/A' else 'N/A',
+                    'TDF_AED': f"AED {nirvana_fields.get('MAIL_TDF', 0):,.2f}" if nirvana_fields.get('MAIL_TDF', 'N/A') != 'N/A' else 'N/A',
+                    'ADR_AED': f"AED {nirvana_fields.get('MAIL_ADR', 0):,.2f}" if nirvana_fields.get('MAIL_ADR', 'N/A') != 'N/A' else 'N/A',
+                    'AMOUNT_AED': f"AED {nirvana_fields.get('MAIL_AMOUNT', 0):,.2f}" if nirvana_fields.get('MAIL_AMOUNT', 'N/A') != 'N/A' else 'N/A'
+                }
+                return mapped_fields
+        except ImportError:
+            logger.warning("Nirvana parser not found, falling back to default patterns")
+    
+    # Check for Duri Travel / Dakkak DMC emails
+    if "dakkak" in sender_email.lower() or "dakkak dmc" in text.lower() or "hotel new booking" in text.lower() and "bkgho" in text.lower():
+        # Import Duri Travel parser
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), 'Rules', 'Travel Agency TO', 'Duri Travel'))
+        try:
+            from duri_travel_parser import extract_duri_travel_fields, is_duri_travel_email
+            
+            if is_duri_travel_email(sender_email, text):
+                duri_fields = extract_duri_travel_fields(text, "")
+                # Map Duri Travel fields to the expected field names used in the app
+                mapped_fields = {
+                    'FIRST_NAME': duri_fields.get('MAIL_FIRST_NAME', 'N/A'),
+                    'FULL_NAME': duri_fields.get('MAIL_FULL_NAME', 'N/A'),
+                    'ARRIVAL': duri_fields.get('MAIL_ARRIVAL', 'N/A'),
+                    'DEPARTURE': duri_fields.get('MAIL_DEPARTURE', 'N/A'),
+                    'NIGHTS': duri_fields.get('MAIL_NIGHTS', 'N/A'),
+                    'PERSONS': duri_fields.get('MAIL_PERSONS', 'N/A'),
+                    'ROOM': duri_fields.get('MAIL_ROOM', 'N/A'),
+                    'RATE_CODE': duri_fields.get('MAIL_RATE_CODE', 'N/A'),
+                    'C_T_S': duri_fields.get('MAIL_C_T_S', 'N/A'),
+                    'C_T_S_NAME': duri_fields.get('MAIL_C_T_S', 'N/A'),
+                    'NET_TOTAL': duri_fields.get('MAIL_NET_TOTAL', 'N/A'),
+                    'TOTAL': duri_fields.get('MAIL_TOTAL', 'N/A'),
+                    'TDF': duri_fields.get('MAIL_TDF', 'N/A'),
+                    'ADR': duri_fields.get('MAIL_ADR', 'N/A'),
+                    'AMOUNT': duri_fields.get('MAIL_AMOUNT', 'N/A'),
+                    # Add formatted currency versions
+                    'NET_TOTAL_AED': f"AED {duri_fields.get('MAIL_NET_TOTAL', 0):,.2f}" if duri_fields.get('MAIL_NET_TOTAL', 'N/A') != 'N/A' else 'N/A',
+                    'TOTAL_AED': f"AED {duri_fields.get('MAIL_TOTAL', 0):,.2f}" if duri_fields.get('MAIL_TOTAL', 'N/A') != 'N/A' else 'N/A',
+                    'TDF_AED': f"AED {duri_fields.get('MAIL_TDF', 0):,.2f}" if duri_fields.get('MAIL_TDF', 'N/A') != 'N/A' else 'N/A',
+                    'ADR_AED': f"AED {duri_fields.get('MAIL_ADR', 0):,.2f}" if duri_fields.get('MAIL_ADR', 'N/A') != 'N/A' else 'N/A',
+                    'AMOUNT_AED': f"AED {duri_fields.get('MAIL_AMOUNT', 0):,.2f}" if duri_fields.get('MAIL_AMOUNT', 'N/A') != 'N/A' else 'N/A'
+                }
+                return mapped_fields
+        except ImportError:
+            logger.warning("Duri Travel parser not found, falling back to default patterns")
+    
+    # Check for Duri emails
+    if "hanmail.net" in sender_email.lower() or "duri travel" in text.lower() or ("grand millennium dubai" in text.lower() and "jmc57" in sender_email.lower()):
+        # Import Duri parser
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), 'Rules', 'Travel Agency TO', 'Duri'))
+        try:
+            from duri_parser import extract_duri_fields, is_duri_email
+            
+            if is_duri_email(sender_email, text):
+                duri_fields = extract_duri_fields(text, "")
+                # Map Duri fields to the expected field names used in the app
+                mapped_fields = {
+                    'FIRST_NAME': duri_fields.get('MAIL_FIRST_NAME', 'N/A'),
+                    'FULL_NAME': duri_fields.get('MAIL_FULL_NAME', 'N/A'),
+                    'ARRIVAL': duri_fields.get('MAIL_ARRIVAL', 'N/A'),
+                    'DEPARTURE': duri_fields.get('MAIL_DEPARTURE', 'N/A'),
+                    'NIGHTS': duri_fields.get('MAIL_NIGHTS', 'N/A'),
+                    'PERSONS': duri_fields.get('MAIL_PERSONS', 'N/A'),
+                    'ROOM': duri_fields.get('MAIL_ROOM', 'N/A'),
+                    'RATE_CODE': duri_fields.get('MAIL_RATE_CODE', 'N/A'),
+                    'C_T_S': duri_fields.get('MAIL_C_T_S', 'N/A'),
+                    'C_T_S_NAME': duri_fields.get('MAIL_C_T_S', 'N/A'),
+                    'NET_TOTAL': duri_fields.get('MAIL_NET_TOTAL', 'N/A'),
+                    'TOTAL': duri_fields.get('MAIL_TOTAL', 'N/A'),
+                    'TDF': duri_fields.get('MAIL_TDF', 'N/A'),
+                    'ADR': duri_fields.get('MAIL_ADR', 'N/A'),
+                    'AMOUNT': duri_fields.get('MAIL_AMOUNT', 'N/A'),
+                    # Add formatted currency versions
+                    'NET_TOTAL_AED': f"AED {duri_fields.get('MAIL_NET_TOTAL', 0):,.2f}" if duri_fields.get('MAIL_NET_TOTAL', 'N/A') != 'N/A' else 'N/A',
+                    'TOTAL_AED': f"AED {duri_fields.get('MAIL_TOTAL', 0):,.2f}" if duri_fields.get('MAIL_TOTAL', 'N/A') != 'N/A' else 'N/A',
+                    'TDF_AED': f"AED {duri_fields.get('MAIL_TDF', 0):,.2f}" if duri_fields.get('MAIL_TDF', 'N/A') != 'N/A' else 'N/A',
+                    'ADR_AED': f"AED {duri_fields.get('MAIL_ADR', 0):,.2f}" if duri_fields.get('MAIL_ADR', 'N/A') != 'N/A' else 'N/A',
+                    'AMOUNT_AED': f"AED {duri_fields.get('MAIL_AMOUNT', 0):,.2f}" if duri_fields.get('MAIL_AMOUNT', 'N/A') != 'N/A' else 'N/A'
+                }
+                return mapped_fields
+        except ImportError:
+            logger.warning("Duri parser not found, falling back to default patterns")
+    
+    # Check for AlKhalidiah Tourism emails
+    if "alkhalidiah.com" in sender_email.lower() or "alkhalidiah" in text.lower() or "al khalidiah" in text.lower():
+        # Import AlKhalidiah parser
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), 'Rules', 'Travel Agency TO', 'AlKhalidiah'))
+        try:
+            from alkhalidiah_parser import extract_alkhalidiah_fields, is_alkhalidiah_email
+            
+            if is_alkhalidiah_email(sender_email, text):
+                alkhalidiah_fields = extract_alkhalidiah_fields(text, "")
+                # Map AlKhalidiah fields to the expected field names used in the app
+                mapped_fields = {
+                    'FIRST_NAME': alkhalidiah_fields.get('MAIL_FIRST_NAME', 'N/A'),
+                    'FULL_NAME': alkhalidiah_fields.get('MAIL_FULL_NAME', 'N/A'),
+                    'ARRIVAL': alkhalidiah_fields.get('MAIL_ARRIVAL', 'N/A'),
+                    'DEPARTURE': alkhalidiah_fields.get('MAIL_DEPARTURE', 'N/A'),
+                    'NIGHTS': alkhalidiah_fields.get('MAIL_NIGHTS', 'N/A'),
+                    'PERSONS': alkhalidiah_fields.get('MAIL_PERSONS', 'N/A'),
+                    'ROOM': alkhalidiah_fields.get('MAIL_ROOM', 'N/A'),
+                    'RATE_CODE': alkhalidiah_fields.get('MAIL_RATE_CODE', 'N/A'),
+                    'C_T_S': alkhalidiah_fields.get('MAIL_C_T_S', 'N/A'),
+                    'C_T_S_NAME': alkhalidiah_fields.get('MAIL_C_T_S', 'N/A'),
+                    'NET_TOTAL': alkhalidiah_fields.get('MAIL_NET_TOTAL', 'N/A'),
+                    'TOTAL': alkhalidiah_fields.get('MAIL_TOTAL', 'N/A'),
+                    'TDF': alkhalidiah_fields.get('MAIL_TDF', 'N/A'),
+                    'ADR': alkhalidiah_fields.get('MAIL_ADR', 'N/A'),
+                    'AMOUNT': alkhalidiah_fields.get('MAIL_AMOUNT', 'N/A'),
+                    # Add formatted currency versions
+                    'NET_TOTAL_AED': f"AED {alkhalidiah_fields.get('MAIL_NET_TOTAL', 0):,.2f}" if alkhalidiah_fields.get('MAIL_NET_TOTAL', 'N/A') != 'N/A' else 'N/A',
+                    'TOTAL_AED': f"AED {alkhalidiah_fields.get('MAIL_TOTAL', 0):,.2f}" if alkhalidiah_fields.get('MAIL_TOTAL', 'N/A') != 'N/A' else 'N/A',
+                    'TDF_AED': f"AED {alkhalidiah_fields.get('MAIL_TDF', 0):,.2f}" if alkhalidiah_fields.get('MAIL_TDF', 'N/A') != 'N/A' else 'N/A',
+                    'ADR_AED': f"AED {alkhalidiah_fields.get('MAIL_ADR', 0):,.2f}" if alkhalidiah_fields.get('MAIL_ADR', 'N/A') != 'N/A' else 'N/A',
+                    'AMOUNT_AED': f"AED {alkhalidiah_fields.get('MAIL_AMOUNT', 0):,.2f}" if alkhalidiah_fields.get('MAIL_AMOUNT', 'N/A') != 'N/A' else 'N/A'
+                }
+                return mapped_fields
+        except ImportError:
+            logger.warning("AlKhalidiah parser not found, falling back to default patterns")
+    
+    # ** INNLINKWAY PARSERS INTEGRATION **
+    # Check for INNLINKWAY emails (noreply-reservations@millenniumhotels.com)
     if "noreply-reservations@millenniumhotels.com" in sender_email.lower():
-        # Patterns for noreply-reservations emails based on actual structure
-        patterns = {
-            'GUEST_NAME_FULL': r"Guest Name:\s*(.+?)(?:\n|Address:)",
-            'ARRIVAL': r"Arrive:\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})",
-            'DEPARTURE': r"Depart:\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})",
-            'NIGHTS': r"Total Nights\s*(\d+)\s*night",
-            'PERSONS': r"Adult/Children:\s*(\d+)/\d+",
-            'ROOM': r"Room with One King Bed\n(?:.*\n)?Room Code:\s*[A-Z0-9]+\s*(?:.*\n)?",
-            'ROOM_TYPE': r"(Superior Room|Deluxe Room|Standard Room|Executive Room)",
-            'RATE_CODE': r"Rate Code:\s*([A-Z0-9]+)",
-            'RATE_NAME': r"Rate Name:\s*(.+?)(?:\n|Rate Code:)",
-            'COMPANY': r"Travel Agent\s*(?:.*\n)*Name:\s*(.+?)(?:\n|$)",
-            'NET_TOTAL': r"Total charges:\s*AED\s*([0-9,]+\.?[0-9]*)",
-            'CONFIRMATION': r"Confirman:\s*([A-Z0-9]+)",
-        }
         
-        # Additional patterns to extract from subject line
-        subject_patterns = {
-            'ARRIVAL_SUBJECT': r"Arrival Date[:]*\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})",
-            'CONFIRMATION_SUBJECT': r"confirmation number[:]*\s*([A-Z0-9]+)",
-        }
+        # T-Agoda parser
+        if ("agoda" in text.lower() or "t- agoda" in text.lower() or "confirmation number" in text.lower()):
+            import sys
+            import os
+            sys.path.append(os.path.join(os.path.dirname(__file__), 'Rules', 'INNLINKWAY', 'Agoda'))
+            try:
+                from agoda_parser import AgodaParser
+                
+                parser = AgodaParser()
+                agoda_fields = parser.parse_agoda_email(text, sender_email)
+                # Map Agoda fields to the expected field names used in the app
+                mapped_fields = {
+                    'FIRST_NAME': agoda_fields.get('FIRST_NAME', 'N/A'),
+                    'FULL_NAME': agoda_fields.get('FULL_NAME', 'N/A'),
+                    'ARRIVAL': agoda_fields.get('ARRIVAL', 'N/A'),
+                    'DEPARTURE': agoda_fields.get('DEPARTURE', 'N/A'),
+                    'NIGHTS': agoda_fields.get('NIGHTS', 'N/A'),
+                    'PERSONS': agoda_fields.get('PERSONS', 'N/A'),
+                    'ROOM': agoda_fields.get('ROOM', 'N/A'),
+                    'RATE_CODE': agoda_fields.get('RATE_CODE', 'N/A'),
+                    'C_T_S': agoda_fields.get('C_T_S', 'N/A'),
+                    'C_T_S_NAME': agoda_fields.get('C_T_S_NAME', 'N/A'),
+                    'NET_TOTAL': agoda_fields.get('NET_TOTAL', 'N/A'),
+                    'TOTAL': agoda_fields.get('TOTAL', 'N/A'),
+                    'TDF': agoda_fields.get('TDF', 'N/A'),
+                    'ADR': agoda_fields.get('ADR', 'N/A'),
+                    'AMOUNT': agoda_fields.get('AMOUNT', 'N/A'),
+                    # Add formatted currency versions
+                    'NET_TOTAL_AED': agoda_fields.get('NET_TOTAL_AED', 'N/A'),
+                    'TOTAL_AED': agoda_fields.get('TOTAL_AED', 'N/A'),
+                    'TDF_AED': agoda_fields.get('TDF_AED', 'N/A'),
+                    'ADR_AED': agoda_fields.get('ADR_AED', 'N/A'),
+                    'AMOUNT_AED': agoda_fields.get('AMOUNT_AED', 'N/A')
+                }
+                return mapped_fields
+            except ImportError:
+                logger.warning("Agoda INNLINKWAY parser not found, falling back to default patterns")
         
-        # Merge subject patterns with main patterns
-        patterns.update(subject_patterns)
+        # T-Booking.com parser
+        elif ("booking.com" in text.lower() or "t- booking.com" in text.lower()):
+            import sys
+            import os
+            sys.path.append(os.path.join(os.path.dirname(__file__), 'Rules', 'INNLINKWAY', 'Booking.com'))
+            try:
+                from booking_com_parser import BookingComParser
+                
+                parser = BookingComParser()
+                booking_fields = parser.parse_booking_email(text, sender_email)
+                # Map Booking.com fields to the expected field names used in the app
+                mapped_fields = {
+                    'FIRST_NAME': booking_fields.get('FIRST_NAME', 'N/A'),
+                    'FULL_NAME': booking_fields.get('FULL_NAME', 'N/A'),
+                    'ARRIVAL': booking_fields.get('ARRIVAL', 'N/A'),
+                    'DEPARTURE': booking_fields.get('DEPARTURE', 'N/A'),
+                    'NIGHTS': booking_fields.get('NIGHTS', 'N/A'),
+                    'PERSONS': booking_fields.get('PERSONS', 'N/A'),
+                    'ROOM': booking_fields.get('ROOM', 'N/A'),
+                    'RATE_CODE': booking_fields.get('RATE_CODE', 'N/A'),
+                    'C_T_S': booking_fields.get('C_T_S', 'N/A'),
+                    'C_T_S_NAME': booking_fields.get('C_T_S_NAME', 'N/A'),
+                    'NET_TOTAL': booking_fields.get('NET_TOTAL', 'N/A'),
+                    'TOTAL': booking_fields.get('TOTAL', 'N/A'),
+                    'TDF': booking_fields.get('TDF', 'N/A'),
+                    'ADR': booking_fields.get('ADR', 'N/A'),
+                    'AMOUNT': booking_fields.get('AMOUNT', 'N/A'),
+                    # Add formatted currency versions
+                    'NET_TOTAL_AED': booking_fields.get('NET_TOTAL_AED', 'N/A'),
+                    'TOTAL_AED': booking_fields.get('TOTAL_AED', 'N/A'),
+                    'TDF_AED': booking_fields.get('TDF_AED', 'N/A'),
+                    'ADR_AED': booking_fields.get('ADR_AED', 'N/A'),
+                    'AMOUNT_AED': booking_fields.get('AMOUNT_AED', 'N/A')
+                }
+                return mapped_fields
+            except ImportError:
+                logger.warning("Booking.com INNLINKWAY parser not found, falling back to default patterns")
+        
+        # T-Brand.com parser
+        elif ("brand.com" in text.lower() or "t- brand.com" in text.lower()):
+            import sys
+            import os
+            sys.path.append(os.path.join(os.path.dirname(__file__), 'Rules', 'INNLINKWAY', 'Brand.com'))
+            try:
+                from brand_com_parser import BrandComParser
+                
+                parser = BrandComParser()
+                brand_fields = parser.parse_brand_email(text, sender_email)
+                # Map Brand.com fields to the expected field names used in the app
+                mapped_fields = {
+                    'FIRST_NAME': brand_fields.get('FIRST_NAME', 'N/A'),
+                    'FULL_NAME': brand_fields.get('FULL_NAME', 'N/A'),
+                    'ARRIVAL': brand_fields.get('ARRIVAL', 'N/A'),
+                    'DEPARTURE': brand_fields.get('DEPARTURE', 'N/A'),
+                    'NIGHTS': brand_fields.get('NIGHTS', 'N/A'),
+                    'PERSONS': brand_fields.get('PERSONS', 'N/A'),
+                    'ROOM': brand_fields.get('ROOM', 'N/A'),
+                    'RATE_CODE': brand_fields.get('RATE_CODE', 'N/A'),
+                    'C_T_S': brand_fields.get('C_T_S', 'N/A'),
+                    'C_T_S_NAME': brand_fields.get('C_T_S_NAME', 'N/A'),
+                    'NET_TOTAL': brand_fields.get('NET_TOTAL', 'N/A'),
+                    'TOTAL': brand_fields.get('TOTAL', 'N/A'),
+                    'TDF': brand_fields.get('TDF', 'N/A'),
+                    'ADR': brand_fields.get('ADR', 'N/A'),
+                    'AMOUNT': brand_fields.get('AMOUNT', 'N/A'),
+                    # Add formatted currency versions
+                    'NET_TOTAL_AED': brand_fields.get('NET_TOTAL_AED', 'N/A'),
+                    'TOTAL_AED': brand_fields.get('TOTAL_AED', 'N/A'),
+                    'TDF_AED': brand_fields.get('TDF_AED', 'N/A'),
+                    'ADR_AED': brand_fields.get('ADR_AED', 'N/A'),
+                    'AMOUNT_AED': brand_fields.get('AMOUNT_AED', 'N/A')
+                }
+                return mapped_fields
+            except ImportError:
+                logger.warning("Brand.com INNLINKWAY parser not found, falling back to default patterns")
+        
+        # T-Expedia parser
+        elif ("expedia" in text.lower() or "t- expedia" in text.lower()):
+            import sys
+            import os
+            sys.path.append(os.path.join(os.path.dirname(__file__), 'Rules', 'INNLINKWAY', 'Expedia'))
+            try:
+                from expedia_parser import ExpediaParser
+                
+                parser = ExpediaParser()
+                expedia_fields = parser.parse_expedia_email(text, sender_email)
+                # Map Expedia fields to the expected field names used in the app
+                mapped_fields = {
+                    'FIRST_NAME': expedia_fields.get('FIRST_NAME', 'N/A'),
+                    'FULL_NAME': expedia_fields.get('FULL_NAME', 'N/A'),
+                    'ARRIVAL': expedia_fields.get('ARRIVAL', 'N/A'),
+                    'DEPARTURE': expedia_fields.get('DEPARTURE', 'N/A'),
+                    'NIGHTS': expedia_fields.get('NIGHTS', 'N/A'),
+                    'PERSONS': expedia_fields.get('PERSONS', 'N/A'),
+                    'ROOM': expedia_fields.get('ROOM', 'N/A'),
+                    'RATE_CODE': expedia_fields.get('RATE_CODE', 'N/A'),
+                    'C_T_S': expedia_fields.get('C_T_S', 'N/A'),
+                    'C_T_S_NAME': expedia_fields.get('C_T_S_NAME', 'N/A'),
+                    'NET_TOTAL': expedia_fields.get('NET_TOTAL', 'N/A'),
+                    'TOTAL': expedia_fields.get('TOTAL', 'N/A'),
+                    'TDF': expedia_fields.get('TDF', 'N/A'),
+                    'ADR': expedia_fields.get('ADR', 'N/A'),
+                    'AMOUNT': expedia_fields.get('AMOUNT', 'N/A'),
+                    # Add formatted currency versions
+                    'NET_TOTAL_AED': expedia_fields.get('NET_TOTAL_AED', 'N/A'),
+                    'TOTAL_AED': expedia_fields.get('TOTAL_AED', 'N/A'),
+                    'TDF_AED': expedia_fields.get('TDF_AED', 'N/A'),
+                    'ADR_AED': expedia_fields.get('ADR_AED', 'N/A'),
+                    'AMOUNT_AED': expedia_fields.get('AMOUNT_AED', 'N/A')
+                }
+                return mapped_fields
+            except ImportError:
+                logger.warning("Expedia INNLINKWAY parser not found, falling back to default patterns")
+    
+    # Select pattern set based on email source for faster processing
+    if "noreply-reservations@millenniumhotels.com" in sender_email.lower():
+        patterns = NOREPLY_PATTERNS
+    elif "c- china southern air" in text.lower() or "china southern" in text.lower():
+        patterns = CHINA_SOUTHERN_PATTERNS  
     else:
-        # Enhanced patterns for PDFs including C- China Southern Air
-        if "c- china southern air" in text.lower() or "china southern" in text.lower():
-            # Specific patterns for China Southern Air reservations
-            patterns = {
-                'FULL_NAME': r"(?:Passenger Name|Guest Name|Name)[:\s]*([A-Z][A-Za-z\s]+)(?:\n|Cabin|Flight)",
-                'FIRST_NAME': r"(?:First Name|Given Name)[:\s]*([A-Za-z]+)",
-                'ARRIVAL': r"(?:Arrival Date|Check.?in|Arrival)[:\s]*(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})",
-                'DEPARTURE': r"(?:Departure Date|Check.?out|Departure)[:\s]*(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})",
-                'NIGHTS': r"(?:Nights?|Night Stay|Duration)[:\s]*(\d+)",
-                'PERSONS': r"(?:Passengers?|Guests?|Adults?|Pax)[:\s]*(\d+)",
-                'ROOM': r"(?:Room Type|Cabin|Accommodation)[:\s]*([A-Z0-9\s]+)",
-                'RATE_CODE': r"(?:Rate Code|Booking Code|Reference)[:\s]*([A-Z0-9]+)",
-                'COMPANY': r"(?:China Southern Air|C- China Southern Air)",
-                'NET_TOTAL': r"(?:Total Cost|Total Amount|Net Total|Total)[:\s]*(?:AED|USD)?\s*([0-9,]+\.?[0-9]*)",
-                'CONFIRMATION': r"(?:PNR|Confirmation|Booking Reference)[:\s]*([A-Z0-9]+)",
-                'FLIGHT': r"(?:Flight|Flight Number)[:\s]*([A-Z0-9]+)",
-            }
-        else:
-            # Original patterns for other emails (PDFs, etc.)
-            patterns = {
-                'FULL_NAME': r"(?:Name|Guest Name)[:\s]+(.+?)(?:\n|$)",
-                'FIRST_NAME': r"(?:First Name)[:\s]+(.+?)(?:\n|$)",
-                'ARRIVAL': r"(?:Arrival|Check-in)[:\s]+(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})",
-                'DEPARTURE': r"(?:Departure|Check-out)[:\s]+(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})",
-                'NIGHTS': r"(?:Nights|Night)[:\s]+(\d+)",
-                'PERSONS': r"(?:Persons|Guest|Adults?)[:\s]+(\d+)",
-                'ROOM': r"(?:Room|Room Type)[:\s]+(.+?)(?:\n|$)",
-                'RATE_CODE': r"(?:Rate Code|Rate)[:\s]+(.+?)(?:\n|$)",
-                'COMPANY': r"(?:Company|Agency)[:\s]+(.+?)(?:\n|$)",
-                'NET_TOTAL': r"(?:Total|Net Total|Amount|Net Amount)[:\s]+(?:AED\s*)?([\\d,]+\.?\\d*)",
-            }
+        patterns = DEFAULT_PATTERNS
     
     extracted = {}
     
-    # Extract all fields first
-    for field, pattern in patterns.items():
-        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+    # Extract all fields using pre-compiled patterns
+    for field, compiled_pattern in patterns.items():
+        match = compiled_pattern.search(text)
         if match:
             value = match.group(1).strip()
             extracted[field] = value
@@ -184,13 +727,41 @@ def extract_reservation_fields(text, sender_email=""):
             extracted['FIRST_NAME'] = 'N/A'
             extracted['FULL_NAME'] = 'N/A'
         
-        # Map room types to codes
+        # Map room types to codes based on official room mapping
         room_type = extracted.get('ROOM_TYPE', 'N/A')
         if room_type != 'N/A':
-            if 'Superior Room' in room_type:
-                extracted['ROOM'] = 'SK'  # Map Superior Room to SK as requested
+            # Use official room mapping from "Entered On room Map.xlsx"
+            if 'Superior Room with One King Bed' in room_type or ('Superior' in room_type and 'King' in room_type):
+                extracted['ROOM'] = 'SK'  # Superior Room with One King Bed
+            elif 'Superior Room with Two Twin Beds' in room_type or ('Superior' in room_type and 'Twin' in room_type):
+                extracted['ROOM'] = 'ST'  # Superior Room with Two Twin Beds
+            elif 'Deluxe Room with One King Bed' in room_type or ('Deluxe' in room_type and 'King' in room_type):
+                extracted['ROOM'] = 'DK'  # Deluxe Room with One King Bed
+            elif 'Deluxe Room with Two Twin Beds' in room_type or ('Deluxe' in room_type and 'Twin' in room_type):
+                extracted['ROOM'] = 'DT'  # Deluxe Room with Two Twin Beds
+            elif 'Club Room with One King Bed' in room_type or ('Club' in room_type and 'King' in room_type):
+                extracted['ROOM'] = 'CK'  # Club Room with One King Bed
+            elif 'Club Room with Two Twin Beds' in room_type or ('Club' in room_type and 'Twin' in room_type):
+                extracted['ROOM'] = 'CT'  # Club Room with Two Twin Beds
+            elif 'Studio with One King Bed' in room_type or 'Studio' in room_type:
+                extracted['ROOM'] = 'SA'  # Studio with One King Bed
+            elif 'One Bedroom Apartment' in room_type or '1 Bedroom' in room_type:
+                extracted['ROOM'] = '1BA'  # One Bedroom Apartment
+            elif 'Business Suite with One King Bed' in room_type or ('Business Suite' in room_type):
+                extracted['ROOM'] = 'BS'  # Business Suite with One King Bed
+            elif 'Executive Suite with One King Bed' in room_type or ('Executive Suite' in room_type):
+                extracted['ROOM'] = 'ES'  # Executive Suite with One King Bed
+            elif 'Family Suite' in room_type:
+                extracted['ROOM'] = 'FS'  # Family Suite with 1 King and 2 Twin Beds
+            elif 'Two Bedroom Apartment' in room_type or '2 Bedroom' in room_type:
+                extracted['ROOM'] = '2BA'  # Two Bedroom Apartment
+            elif 'Presidential Suite' in room_type:
+                extracted['ROOM'] = 'PRES'  # Presidential Suite
+            elif 'Royal Suite' in room_type:
+                extracted['ROOM'] = 'RS'  # Royal Suite
             else:
-                extracted['ROOM'] = room_type
+                # Fallback: try to extract first few characters
+                extracted['ROOM'] = room_type[:4].upper().replace(' ', '')
         else:
             extracted['ROOM'] = 'N/A'
         
@@ -239,6 +810,25 @@ def extract_reservation_fields(text, sender_email=""):
     if extracted.get('ARRIVAL', 'N/A') == 'N/A' and extracted.get('ARRIVAL_SUBJECT', 'N/A') != 'N/A':
         extracted['ARRIVAL'] = extracted['ARRIVAL_SUBJECT']
     
+    # ** OTA-SPECIFIC CALCULATIONS **
+    # Check if this is from INNLINKWAY (noreply-reservations@millenniumhotels.com)
+    is_innlinkway = "noreply-reservations@millenniumhotels.com" in sender_email.lower()
+    
+    # Check if this is a T-Agoda or T-Expedia reservation (NET_TOTAL logic)
+    is_agoda_expedia = ("agoda" in extracted.get('COMPANY', '').lower() or 
+                       "agoda" in text.lower() or
+                       "t- agoda" in text.lower() or
+                       "expedia" in extracted.get('COMPANY', '').lower() or 
+                       "expedia" in text.lower() or
+                       "t- expedia" in text.lower())
+    
+    # Check if this should follow Booking.com logic (TOTAL logic)
+    # Rule: Any INNLINKWAY reservation NOT from Agoda/Expedia follows Booking.com logic
+    is_booking_logic = (is_innlinkway and not is_agoda_expedia) or (
+                       "booking.com" in extracted.get('COMPANY', '').lower() or 
+                       "booking.com" in text.lower() or
+                       "t- booking.com" in text.lower())
+    
     # Calculate TDF as nights × 20
     try:
         nights = extracted.get('NIGHTS', 'N/A')
@@ -249,43 +839,128 @@ def extract_reservation_fields(text, sender_email=""):
             extracted['TDF_AED'] = f"AED {tdf_amount:,.2f}"
         else:
             extracted['TDF'] = "N/A"
+            tdf_amount = 0
     except:
         extracted['TDF'] = "N/A"
+        tdf_amount = 0
     
-    # Calculate ADR (Average Daily Rate) = NET_TOTAL / NIGHTS
-    try:
-        net_total = extracted.get('NET_TOTAL', 'N/A')
-        nights = extracted.get('NIGHTS', 'N/A')
-        if (net_total != 'N/A' and nights != 'N/A' and 
-            str(nights).isdigit() and str(net_total).replace(',', '').replace('.', '').isdigit()):
-            nights_num = int(nights)
-            net_total_num = float(str(net_total).replace(',', ''))
-            if nights_num > 0:
-                adr = net_total_num / nights_num
-                extracted['ADR'] = f"{adr:.2f}"
-                extracted['ADR_AED'] = f"AED {adr:,.2f}"
+    # Handle amounts based on OTA type
+    if is_booking_logic:
+        # Booking.com Logic: Email amount is MAIL_TOTAL (includes TDF)
+        # Applies to: T-Booking.com, Brand.com, and any INNLINKWAY non-Agoda/Expedia
+        try:
+            total_charges = extracted.get('NET_TOTAL', 'N/A')  # This is actually TOTAL for booking logic
+            if total_charges != 'N/A':
+                total_amount = float(str(total_charges).replace(',', ''))
+                
+                # For Booking Logic: MAIL_TOTAL = email amount (includes TDF)
+                extracted['TOTAL'] = str(total_amount)
+                
+                # MAIL_NET_TOTAL = MAIL_TOTAL - MAIL_TDF (amount without TDF but with taxes)
+                net_total = total_amount - tdf_amount
+                extracted['NET_TOTAL'] = str(net_total)
+                
+                # MAIL_AMOUNT = MAIL_NET_TOTAL / 1.225 (amount without taxes)
+                amount_without_taxes = net_total / 1.225
+                extracted['AMOUNT'] = f"{amount_without_taxes:.2f}"
+                
+                # Calculate ADR = AMOUNT / NIGHTS
+                if nights != 'N/A' and int(nights) > 0:
+                    adr = amount_without_taxes / int(nights)
+                    extracted['ADR'] = f"{adr:.2f}"
+                    extracted['ADR_AED'] = f"AED {adr:,.2f}"
+                else:
+                    extracted['ADR'] = "N/A"
+                
+                # Format currency fields
+                extracted['TOTAL_AED'] = f"AED {total_amount:,.2f}"
+                extracted['NET_TOTAL_AED'] = f"AED {net_total:,.2f}"
+                extracted['AMOUNT_AED'] = f"AED {amount_without_taxes:,.2f}"
+            else:
+                extracted['TOTAL'] = "N/A"
+                extracted['AMOUNT'] = "N/A"
+                extracted['ADR'] = "N/A"
+        except:
+            extracted['TOTAL'] = "N/A"
+            extracted['AMOUNT'] = "N/A"
+            extracted['ADR'] = "N/A"
+    elif is_agoda_expedia and is_innlinkway:
+        # T-Agoda/T-Expedia: Email amount is MAIL_NET_TOTAL (excludes TDF)
+        try:
+            net_charges = extracted.get('NET_TOTAL', 'N/A')  # This is NET_TOTAL for agoda/expedia
+            if net_charges != 'N/A':
+                net_total_amount = float(str(net_charges).replace(',', ''))
+                
+                # For T-Agoda/T-Expedia: MAIL_NET_TOTAL = email amount (excludes TDF)
+                extracted['NET_TOTAL'] = str(net_total_amount)
+                
+                # MAIL_TOTAL = MAIL_NET_TOTAL + MAIL_TDF (total amount with TDF)
+                total_with_tdf = net_total_amount + tdf_amount
+                extracted['TOTAL'] = str(total_with_tdf)
+                
+                # MAIL_AMOUNT = MAIL_NET_TOTAL / 1.225 (amount without taxes)
+                amount_without_taxes = net_total_amount / 1.225
+                extracted['AMOUNT'] = f"{amount_without_taxes:.2f}"
+                
+                # Calculate ADR = AMOUNT / NIGHTS
+                if nights != 'N/A' and int(nights) > 0:
+                    adr = amount_without_taxes / int(nights)
+                    extracted['ADR'] = f"{adr:.2f}"
+                    extracted['ADR_AED'] = f"AED {adr:,.2f}"
+                else:
+                    extracted['ADR'] = "N/A"
+                
+                # Format currency fields
+                extracted['NET_TOTAL_AED'] = f"AED {net_total_amount:,.2f}"
+                extracted['TOTAL_AED'] = f"AED {total_with_tdf:,.2f}"
+                extracted['AMOUNT_AED'] = f"AED {amount_without_taxes:,.2f}"
+            else:
+                extracted['NET_TOTAL'] = "N/A"
+                extracted['TOTAL'] = "N/A"
+                extracted['AMOUNT'] = "N/A"
+                extracted['ADR'] = "N/A"
+        except:
+            extracted['NET_TOTAL'] = "N/A"
+            extracted['TOTAL'] = "N/A"
+            extracted['AMOUNT'] = "N/A"
+            extracted['ADR'] = "N/A"
+    else:
+        # Default calculation for other OTAs (Expedia, Agoda, etc.)
+        # Calculate ADR (Average Daily Rate) = NET_TOTAL / NIGHTS
+        try:
+            net_total = extracted.get('NET_TOTAL', 'N/A')
+            nights = extracted.get('NIGHTS', 'N/A')
+            if (net_total != 'N/A' and nights != 'N/A' and 
+                str(nights).isdigit() and str(net_total).replace(',', '').replace('.', '').isdigit()):
+                nights_num = int(nights)
+                net_total_num = float(str(net_total).replace(',', ''))
+                if nights_num > 0:
+                    adr = net_total_num / nights_num
+                    extracted['ADR'] = f"{adr:.2f}"
+                    extracted['ADR_AED'] = f"AED {adr:,.2f}"
+                else:
+                    extracted['ADR'] = "N/A"
             else:
                 extracted['ADR'] = "N/A"
-        else:
+        except:
             extracted['ADR'] = "N/A"
-    except:
-        extracted['ADR'] = "N/A"
-    
-    # Set AMOUNT = NET_TOTAL for consistency
-    try:
-        net_total = extracted.get('NET_TOTAL', 'N/A')
-        if net_total != 'N/A':
-            amount_num = float(str(net_total).replace(',', ''))
-            extracted['AMOUNT'] = net_total
-            extracted['AMOUNT_AED'] = f"AED {amount_num:,.2f}"
-            # Set TOTAL as separate field (could be different from NET_TOTAL)
-            extracted['TOTAL'] = net_total  # For now, same as NET_TOTAL
-        else:
+        
+        # Set AMOUNT = NET_TOTAL for consistency (other OTAs)
+        try:
+            net_total = extracted.get('NET_TOTAL', 'N/A')
+            if net_total != 'N/A':
+                amount_num = float(str(net_total).replace(',', ''))
+                extracted['AMOUNT'] = net_total
+                extracted['AMOUNT_AED'] = f"AED {amount_num:,.2f}"
+                # For non-booking.com, TOTAL = NET_TOTAL + TDF
+                total_with_tdf = amount_num + tdf_amount
+                extracted['TOTAL'] = str(total_with_tdf)
+            else:
+                extracted['AMOUNT'] = "N/A"
+                extracted['TOTAL'] = "N/A"
+        except:
             extracted['AMOUNT'] = "N/A"
             extracted['TOTAL'] = "N/A"
-    except:
-        extracted['AMOUNT'] = "N/A"
-        extracted['TOTAL'] = "N/A"
     
     # Special handling for China Southern Air reservations
     if "c- china southern air" in text.lower() or "china southern" in text.lower():
@@ -305,8 +980,76 @@ def extract_reservation_fields(text, sender_email=""):
             extracted['C_T_S'] = "N/A"
             extracted['C_T_S_NAME'] = "N/A"
     
+    # Add INSERT_USER using rule engine if not already set
+    if 'INSERT_USER' not in extracted:
+        rule_type, parser_path, insert_user = get_travel_agency_rule(
+            extracted.get('C_T_S_NAME', c_t_s_name), sender_email, text
+        )
+        extracted['INSERT_USER'] = insert_user
+    
     return extracted
 
+
+def get_rule_based_search_folders(rule_type, outlook, namespace):
+    """
+    Get appropriate Outlook folders to search based on rule type
+    Returns list of folder objects to search in
+    """
+    try:
+        folders_to_search = []
+        
+        # Get the default inbox first
+        inbox = namespace.GetDefaultFolder(6)  # 6 = olFolderInbox
+        folders_to_search.append(inbox)
+        
+        # Add rule-specific folders based on rule type
+        if rule_type.startswith("INNLINKWAY"):
+            # Search for INNLINKWAY specific folders
+            try:
+                # Look for folders that might contain INNLINKWAY emails
+                for folder in inbox.Folders:
+                    folder_name = folder.Name.lower()
+                    if any(keyword in folder_name for keyword in ['innlink', 'millennium', 'booking', 'reservation']):
+                        folders_to_search.append(folder)
+            except:
+                pass
+        
+        elif rule_type.startswith("TRAVEL_AGENCY"):
+            # Search for travel agency folders
+            try:
+                for folder in inbox.Folders:
+                    folder_name = folder.Name.lower()
+                    if any(keyword in folder_name for keyword in ['travel', 'agency', 'booking', 'tour']):
+                        folders_to_search.append(folder)
+            except:
+                pass
+        
+        elif rule_type.startswith("AIRLINES"):
+            # Search for airline folders
+            try:
+                for folder in inbox.Folders:
+                    folder_name = folder.Name.lower()
+                    if any(keyword in folder_name for keyword in ['airline', 'flight', 'air']):
+                        folders_to_search.append(folder)
+            except:
+                pass
+        
+        # Always include sent items for outbound correspondence
+        try:
+            sent_items = namespace.GetDefaultFolder(5)  # 5 = olFolderSentMail
+            folders_to_search.append(sent_items)
+        except:
+            pass
+            
+        return folders_to_search
+        
+    except Exception as e:
+        logger.error(f"Error getting rule-based search folders: {e}")
+        # Fallback to just inbox
+        try:
+            return [namespace.GetDefaultFolder(6)]
+        except:
+            return []
 
 def get_current_mailbox_info(outlook, namespace):
     """Get information about the current active mailbox"""
@@ -591,15 +1334,25 @@ def process_all_reservations_with_emails(outlook, namespace, reservations_df, da
                         if value != 'N/A':
                             result['reservation_data'][f'MAIL_{field}'] = value
                     
-                    # Also extract from body text for noreply-reservations emails
+                    # Also extract from body text using rule engine
                     sender_email = getattr(email, 'sender', '')
-                    if "noreply-reservations@millenniumhotels.com" in sender_email.lower():
-                        # Get subject and body content
-                        email_text = f"{email.get('subject', '')}\n{getattr(email, 'body', '')}"
-                        additional_fields = extract_reservation_fields(email_text, sender_email)
-                        for field, value in additional_fields.items():
-                            if value != 'N/A':
-                                result['reservation_data'][f'MAIL_{field}'] = value
+                    c_t_s_name = result['reservation_data'].get('C_T_S_NAME', '')
+                    
+                    # Get subject and body content
+                    email_text = f"{email.get('subject', '')}\n{getattr(email, 'body', '')}"
+                    
+                    # Use rule engine to get INSERT_USER
+                    rule_type, parser_path, insert_user = get_travel_agency_rule(c_t_s_name, sender_email, email_text)
+                    
+                    # Extract additional fields using rule-based extraction
+                    additional_fields = extract_reservation_fields(email_text, sender_email, c_t_s_name)
+                    
+                    # Add INSERT_USER to the extracted data
+                    additional_fields['INSERT_USER'] = insert_user
+                    
+                    for field, value in additional_fields.items():
+                        if value != 'N/A':
+                            result['reservation_data'][f'MAIL_{field}'] = value
         
         results.append(result)
         
@@ -834,6 +1587,49 @@ def main():
         st.write("• Added comprehensive rate extraction (ADR, TDF calculation)")
         st.write("• Currency set to AED only")
         st.write("• Email vs data field matching audit")
+        st.write("• **NEW**: Travel Agency TO parsers (Travco, Dubai Link, Dakkak, Duri)")
+        
+        # Add parser information
+        with st.expander("🔧 Available Email Parsers", expanded=False):
+            st.markdown("### Specialized Travel Agency Parsers")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.markdown("**Travco Parser**")
+                st.write("• Email: travco@travco.co.uk")
+                st.write("• Detects: Hotel Booking Confirmation")
+                st.write("• Rate Code: TOBBJN (TO* format)")
+                st.write("• Fields: All standard extraction fields")
+                st.success("✅ Active")
+            
+            with col2:
+                st.markdown("**Dubai Link Parser**")
+                st.write("• Email: gte.travel domain")
+                st.write("• Detects: Confirmed Booking")
+                st.write("• Rate Code: TO* format")
+                st.write("• Fields: All standard extraction fields")
+                st.success("✅ Active")
+            
+            with col3:
+                st.markdown("**Dakkak Parser**")
+                st.write("• Email: dakkak.com (Dakkak DMC)")
+                st.write("• Detects: Hotel New Booking")
+                st.write("• Rate Code: BKGHO format")
+                st.write("• Fields: All standard extraction fields")
+                st.success("✅ Active")
+            
+            with col4:
+                st.markdown("**Duri Parser**")
+                st.write("• Email: hanmail.net (Duri)")
+                st.write("• Detects: DURI TRAVEL booking")
+                st.write("• Rate Code: AED rate format")
+                st.write("• Fields: All standard extraction fields")
+                st.success("✅ Active")
+                
+            st.markdown("### Standard Pattern Parsers")
+            st.write("• noreply-reservations@millenniumhotels.com (INNLINKWAY)")
+            st.write("• China Southern Air reservations")
+            st.write("• Generic hotel confirmation emails")
         st.write("• Automatic file selection from P:\\Reservation\\Entered on")
     
     # Hardcode days to 2
@@ -1011,15 +1807,15 @@ def main():
                 if status_filter != "All":
                     filtered_results = [r for r in email_results if r['status'] == status_filter]
             
-            # Email Extraction Results Table - NO DROPDOWNS, JUST TABLE
+            # Email Extraction Results Table - Mail extraction variables only
             st.subheader("📄 Email Extraction Results")
             
-            # Create table with extracted email data - NO Guest_Name column, separate NET_TOTAL and TOTAL
+            # Create simplified table showing only MAIL extraction variables
             table_data = []
-            # Entered On sheet columns A-P (removing Guest_Name, separating NET_TOTAL and TOTAL, C_T_S as Company name)
-            specified_fields = ['FULL_NAME', 'FIRST_NAME', 'ARRIVAL', 'DEPARTURE', 
-                              'NIGHTS', 'PERSONS', 'ROOM', 'RATE_CODE', 'C_T_S',
-                              'NET', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT', 'SEASON']
+            
+            # Core mail extraction fields to display
+            mail_fields = ['FIRST_NAME', 'FULL_NAME', 'ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 
+                          'RATE_CODE', 'C_T_S', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT']
             
             for result in filtered_results:
                 reservation = result['reservation_data']
@@ -1031,45 +1827,127 @@ def main():
                     if email.get('extracted_data'):
                         email_data.update(email['extracted_data'])
                 
-                # Create row with all specified fields - NO Guest_Name column
+                # Create row with guest name and mail extraction fields only
                 row_data = {
+                    'Guest_Name': guest_name,
                     'Email_Status': result['status'],
                     'Emails_Found': result['email_count']
                 }
                 
-                # Add all specified fields - show N/A if not found
-                for field in specified_fields:
-                    value = email_data.get(field, 'N/A')
-                    # Format currency fields
-                    if field in ['TDF', 'NET', 'NET_TOTAL', 'TOTAL', 'AMOUNT'] and value != 'N/A':
-                        try:
-                            amount = float(str(value).replace(',', ''))
-                            value = f"AED {amount:,.2f}"
-                        except:
-                            value = 'N/A'
-                    row_data[field] = value
-                
-                # Add corresponding Mail_ columns for extracted email data
-                mail_fields = ['FIRST_NAME', 'ARRIVAL', 'DEPARTURE', 'NIGHTS', 'PERSONS', 'ROOM', 'RATE_CODE', 
-                             'C_T_S', 'C_T_S_NAME', 'NET', 'NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT', 'SEASON']
+                # Add mail extraction fields with MAIL_ prefix
                 for field in mail_fields:
                     mail_value = email_data.get(field, 'N/A')
                     # Format currency fields
-                    if field in ['TDF', 'NET', 'NET_TOTAL', 'TOTAL', 'AMOUNT'] and mail_value != 'N/A':
+                    if field in ['NET_TOTAL', 'TOTAL', 'TDF', 'ADR', 'AMOUNT'] and mail_value != 'N/A':
                         try:
                             amount = float(str(mail_value).replace(',', ''))
                             mail_value = f"AED {amount:,.2f}"
                         except:
                             mail_value = 'N/A'
-                    row_data[f'Mail_{field}'] = mail_value
+                    row_data[f'MAIL_{field}'] = mail_value
                 
                 table_data.append(row_data)
             
             if table_data:
                 results_df = pd.DataFrame(table_data)
                 st.dataframe(results_df, use_container_width=True, height=500)
+                
+                # Save to database button
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("💾 Save Email Extractions to Database", type="secondary"):
+                        if st.session_state.current_run_id:
+                            try:
+                                # Save current email extraction results to database
+                                saved_count = st.session_state.database.save_email_extraction(
+                                    st.session_state.email_data, 
+                                    st.session_state.current_run_id
+                                )
+                                st.success(f"✅ Saved {saved_count} email extractions to database")
+                            except Exception as e:
+                                st.error(f"❌ Error saving to database: {e}")
+                        else:
+                            st.warning("⚠️ No active run ID. Please process data first.")
             else:
                 st.info("No results to display.")
+            
+            # Section to view previously processed extractions
+            st.markdown("---")
+            st.subheader("📚 Previously Processed Email Extractions")
+            
+            # Get recent runs for selection
+            try:
+                recent_runs = st.session_state.database.get_recent_runs(limit=10)
+                
+                if not recent_runs.empty:
+                    # Select run to view
+                    run_options = recent_runs['run_id'].tolist()
+                    selected_run = st.selectbox(
+                        "Select a run to view email extractions:",
+                        options=[''] + run_options,
+                        format_func=lambda x: f"Current Run" if x == st.session_state.current_run_id else (f"{x[-8:]} - {recent_runs[recent_runs['run_id']==x]['run_timestamp'].iloc[0]}" if x else "Select a run...")
+                    )
+                    
+                    if selected_run:
+                        # Load email extraction data for selected run
+                        email_extraction_df = st.session_state.database.export_data('reservations_email', selected_run)
+                        
+                        if not email_extraction_df.empty:
+                            # Transform database data to display format
+                            display_data = []
+                            for _, row in email_extraction_df.iterrows():
+                                display_row = {
+                                    'Guest_Name': row['guest_name'],
+                                    'Email_Subject': row['email_subject'][:50] + '...' if len(row['email_subject']) > 50 else row['email_subject'],
+                                    'Email_Sender': row['email_sender'],
+                                    'Folder': row['folder_name'],
+                                    'MAIL_FIRST_NAME': row['mail_first_name'],
+                                    'MAIL_ARRIVAL': row['mail_arrival'],
+                                    'MAIL_DEPARTURE': row['mail_departure'],
+                                    'MAIL_NIGHTS': row['mail_nights'],
+                                    'MAIL_PERSONS': row['mail_persons'],
+                                    'MAIL_ROOM': row['mail_room'],
+                                    'MAIL_RATE_CODE': row['mail_rate_code'],
+                                    'MAIL_C_T_S': row['mail_c_t_s'],
+                                    'MAIL_NET_TOTAL': f"AED {row['mail_net_total']:,.2f}" if row['mail_net_total'] > 0 else 'N/A',
+                                    'MAIL_TOTAL': f"AED {row['mail_total']:,.2f}" if row['mail_total'] > 0 else 'N/A',
+                                    'MAIL_TDF': f"AED {row['mail_tdf']:,.2f}" if row['mail_tdf'] > 0 else 'N/A',
+                                    'MAIL_ADR': f"AED {row['mail_adr']:,.2f}" if row['mail_adr'] > 0 else 'N/A',
+                                    'MAIL_AMOUNT': f"AED {row['mail_amount']:,.2f}" if row['mail_amount'] > 0 else 'N/A'
+                                }
+                                display_data.append(display_row)
+                            
+                            previous_df = pd.DataFrame(display_data)
+                            
+                            # Show summary
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Total Email Extractions", len(previous_df))
+                            with col2:
+                                unique_guests = previous_df['Guest_Name'].nunique()
+                                st.metric("Unique Guests", unique_guests)
+                            with col3:
+                                with_data = len([row for row in display_data if any(v != 'N/A' for k, v in row.items() if k.startswith('MAIL_'))])
+                                st.metric("With Extraction Data", with_data)
+                            
+                            # Display the data
+                            st.dataframe(previous_df, use_container_width=True, height=400)
+                            
+                            # Export option
+                            csv_data = previous_df.to_csv(index=False)
+                            st.download_button(
+                                label="📥 Download Previous Email Extractions CSV",
+                                data=csv_data,
+                                file_name=f"previous_email_extractions_{selected_run}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                                mime="text/csv"
+                            )
+                        else:
+                            st.info("No email extraction data found for this run.")
+                else:
+                    st.info("No previous runs found in the database.")
+                    
+            except Exception as e:
+                st.error(f"❌ Error loading previous extractions: {e}")
             
             # Export results
             st.markdown("---")

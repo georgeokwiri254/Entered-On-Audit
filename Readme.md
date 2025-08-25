@@ -123,13 +123,49 @@ ADR- Average daily rate Rate without taxes
 # OTA Reservations
 
 1. Bookings from T- Booking.com, T- Expedia, T- Agoda.com Company, Brand.com
-2. Bookings from *INNLINK2WAY under the  under the INSERT_USER label will be from noreply-reservations@millenniumhotels.com email
+2. Bookings from *INNLINK2WAY under the  under the INSERT_USER label will be from  email
 3. INNLINK2WAY the date format is the csame and has to conversted from mm/dd/yyyy to dd/mm/yyyy
-4. for T-Booking.com and T-Brand.com the amount on email will be Mail_TOTAL . For such reservations Mail_NET_TOTAL will be = Mail_TOTAL-Mail_TDF. amount with TDF
-5. For T- Expedia and Agoda Mail_TOTAL=Mail_NET_TOTAL+Mail_TDF. the amount in the email will be Mail_NET_TOTAL. amount without TDF
-6. 
+4. for T-Booking.com and T-Brand.com the amount on email will be Mail_TOTAL . For such reservations Mail_NET_TOTAL = Mail_TOTAL-Mail_TDF. amount with TDF. MAIL AMOUNT = Mail_NET_TOTAL/1.225
+5. For T- Expedia and Agoda the amount in the email will be Mail_NET_TOTAL. amount without TDF. Mail_TOTAL=Mail_NET_TOTAL+Mail_TDF. MAIL AMOUNT = Mail_NET_TOTAL/1.225. Mail_ADR= MAIL AMOUNT/MAIL_NIGHTS
 
+# Travel Agency Reservations
 
+## Dubai Link (Global Travel Engine)
+
+**Email Format**: Confirmed Booking with Ref. No. [BOOKING_CODE]
+**Sender**: suppliers@gte.travel
+
+### Field Mapping:
+- **MAIL_FIRST_NAME**: From "Name:" field (e.g., SOHEIL)
+- **MAIL_FULL_NAME**: From "Last Name:" field (e.g., RADIOM)
+- **MAIL_ARRIVAL**: From "Arrival Date:" (dd/mm/yyyy format)
+- **MAIL_DEPARTURE**: From "Departure Date:" (dd/mm/yyyy format)
+- **MAIL_NIGHTS**: Calculated from arrival/departure dates
+- **MAIL_PERSONS**: From "Adult" count in room description
+- **MAIL_ROOM**: From "Rooms:" field (e.g., "1 x Superior Room (King/Twin) - Double (1 Adult)")
+- **MAIL_RATE_CODE**: From "Promo code:" field (e.g., TOBBJN{ALL MARKET EX UAE})
+- **MAIL_C_T_S**: "Dubai Link" (travel agency name)
+- **MAIL_NET_TOTAL**: From "Booking cost price:" field
+- **MAIL_TDF**: Calculated as (nights × 20) for regular rooms, (nights × 40) for 2BA rooms
+- **MAIL_TOTAL**: MAIL_NET_TOTAL + MAIL_TDF
+- **MAIL_AMOUNT**: MAIL_NET_TOTAL ÷ 1.225 (amount without taxes)
+- **MAIL_ADR**: MAIL_AMOUNT ÷ MAIL_NIGHTS (average daily rate)
+
+### TDF Calculation Logic:
+- Regular rooms: nights × 20 AED
+- Two Bedroom Apartments (2BA): nights × 40 AED
+- For stays 30+ nights: use 30 × rate (cap at 30 nights)
+
+### Sample Extraction:
+```
+Name: SOHEIL → MAIL_FIRST_NAME: SOHEIL
+Last Name: RADIOM → MAIL_FULL_NAME: RADIOM
+Arrival Date: 27/08/2025 → MAIL_ARRIVAL: 27/08/2025
+Departure Date: 28/08/2025 → MAIL_DEPARTURE: 28/08/2025
+1 x Superior Room (King/Twin) - Double (1 Adult) → MAIL_PERSONS: 1
+Booking cost price: 200.00 AED → MAIL_NET_TOTAL: 200.00
+Promo code: TOBBJN{ALL MARKET EX UAE} → MAIL_RATE_CODE: TOBBJN{ALL MARKET EX UAE}
+``` 
 
 Great question 👌 — let’s clarify exactly  **how SQLite fits into your audit project** .
 

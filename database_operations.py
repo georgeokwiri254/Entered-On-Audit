@@ -59,6 +59,10 @@ class AuditDatabase:
                 logger.info("Adding 'mail_net' column to reservations_email table")
                 conn.execute("ALTER TABLE reservations_email ADD COLUMN mail_net REAL DEFAULT 0.0")
             
+            if 'insert_user' not in columns:
+                logger.info("Adding 'insert_user' column to reservations_email table")
+                conn.execute("ALTER TABLE reservations_email ADD COLUMN insert_user TEXT DEFAULT 'MANUAL_ENTRY'")
+            
             # Add mail_c_t_s_name and mail_net columns to reservations_audit table
             cursor.execute("PRAGMA table_info(reservations_audit)")
             columns = [col[1] for col in cursor.fetchall()]
@@ -70,6 +74,10 @@ class AuditDatabase:
             if 'mail_net' not in columns:
                 logger.info("Adding 'mail_net' column to reservations_audit table")
                 conn.execute("ALTER TABLE reservations_audit ADD COLUMN mail_net REAL DEFAULT 0.0")
+            
+            if 'insert_user' not in columns:
+                logger.info("Adding 'insert_user' column to reservations_audit table")
+                conn.execute("ALTER TABLE reservations_audit ADD COLUMN insert_user TEXT DEFAULT 'MANUAL_ENTRY'")
             
         except Exception as e:
             logger.warning(f"Schema migration failed: {e}")
@@ -353,6 +361,7 @@ class AuditDatabase:
                             'mail_rate_code': extracted_data.get('RATE_CODE', ''),
                             'mail_c_t_s': extracted_data.get('C_T_S', ''),
                             'mail_c_t_s_name': extracted_data.get('C_T_S_NAME', ''),
+                            'insert_user': extracted_data.get('INSERT_USER', 'MANUAL_ENTRY'),
                             'mail_net': self._parse_float(extracted_data.get('NET', 0)),
                             'mail_net_total': self._parse_float(extracted_data.get('NET_TOTAL', 0)),
                             'mail_total': self._parse_float(extracted_data.get('TOTAL', 0)),
@@ -428,6 +437,7 @@ class AuditDatabase:
                         'mail_rate_code': row.get('Mail_RATE_CODE', ''),
                         'mail_c_t_s': row.get('Mail_C_T_S', ''),
                         'mail_c_t_s_name': row.get('Mail_C_T_S_NAME', ''),
+                        'insert_user': row.get('Mail_INSERT_USER', 'MANUAL_ENTRY'),
                         'mail_net': row.get('Mail_NET', 0.0),
                         'mail_net_total': row.get('Mail_NET_TOTAL', 0.0),
                         'mail_total': row.get('Mail_TOTAL', 0.0),

@@ -1,0 +1,15 @@
+Field,Extracted_Value,Formatted_Value,Status
+METADATA,"Subject: Arrival Date:09/04/2025,Grand Millennium Dubai ,confirmation number:4K76RP0X8...",Sender: noreply-reservations@millenniumhotels.com,Received: 2025-08-25 13:14:18.677000+00:00
+MAIL_FIRST_NAME,KAPIL,KAPIL,Found
+MAIL_ARRIVAL,04/09/2025,04/09/2025,Found
+MAIL_DEPARTURE,03/10/2025,03/10/2025,Found
+MAIL_NIGHTS,29,29,Found
+MAIL_PERSONS,1,1,Found
+MAIL_ROOM,SK,SK,Found
+MAIL_RATE_CODE,WH07918R,WH07918R,Found
+MAIL_C_T_S,Booking.com,Booking.com,Found
+MAIL_NET_TOTAL,10357.47,"AED 10,357.47",Found
+MAIL_TOTAL,10357.47,"AED 10,357.47",Found
+MAIL_TDF,580,AED 580.00,Found
+MAIL_ADR,357.15,AED 357.15,Found
+MAIL_AMOUNT,10357.47,"AED 10,357.47",Found
