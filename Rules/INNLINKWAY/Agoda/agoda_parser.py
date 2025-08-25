@@ -240,5 +240,15 @@ def test_agoda_parser():
     
     return results
 
+def parse_agoda_email(email_body, email_subject):
+    """Wrapper function for NER training data extraction"""
+    parser = AgodaParser()
+    result = parser.parse_agoda_email(email_body)
+    return result
+
+def is_agoda_email(email_body, email_subject):
+    """Check if email is from Agoda"""
+    return 'agoda' in email_body.lower() or 'agoda' in email_subject.lower()
+
 if __name__ == "__main__":
     test_agoda_parser()

@@ -240,5 +240,15 @@ def test_booking_com_parser():
     
     return results
 
+def extract_booking_fields(email_body, email_subject):
+    """Wrapper function for NER training data extraction"""
+    parser = BookingComParser()
+    result = parser.parse_booking_com_email(email_body)
+    return result
+
+def is_booking_email(email_body, email_subject):
+    """Check if email is from Booking.com"""
+    return 'booking' in email_body.lower() or 'booking' in email_subject.lower()
+
 if __name__ == "__main__":
     test_booking_com_parser()

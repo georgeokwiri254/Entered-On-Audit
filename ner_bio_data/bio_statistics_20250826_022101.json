@@ -1,0 +1,119 @@
+{
+  "dataset_split": {
+    "train": 8,
+    "validation": 1,
+    "test": 1,
+    "total": 10
+  },
+  "token_statistics": {
+    "total_tokens": 6428,
+    "labeled_tokens": 326,
+    "avg_tokens_per_record": 642.8,
+    "avg_labeled_per_record": 32.6,
+    "labeling_ratio": 5.07156191661481
+  },
+  "label_distribution": {
+    "O": 6102,
+    "B-MAIL_C_T_S": 33,
+    "B-MAIL_FIRST_NAME": 107,
+    "B-MAIL_TDF": 72,
+    "B-MAIL_ARRIVAL": 4,
+    "I-MAIL_ARRIVAL": 16,
+    "B-MAIL_DEPARTURE": 3,
+    "I-MAIL_DEPARTURE": 12,
+    "B-MAIL_NIGHTS": 12,
+    "B-MAIL_RATE_CODE": 5,
+    "I-MAIL_RATE_CODE": 12,
+    "I-MAIL_C_T_S": 5,
+    "B-MAIL_ROOM": 2,
+    "I-MAIL_ROOM": 21,
+    "I-MAIL_FIRST_NAME": 3,
+    "B-MAIL_FULL_NAME": 4,
+    "B-MAIL_PERSONS": 14,
+    "I-MAIL_FULL_NAME": 1
+  },
+  "agency_distribution": {
+    "tbo": 1,
+    "almosafer": 1,
+    "webbeds": 1,
+    "dubai_link": 1,
+    "traveltino": 1,
+    "voyage": 1,
+    "duri": 1,
+    "nirvana": 1,
+    "alkhalidiah": 1,
+    "ease_my_trip": 1
+  },
+  "entity_coverage": {
+    "MAIL_FIRST_NAME": {
+      "B": 107,
+      "I": 3,
+      "total_records": 6
+    },
+    "MAIL_FULL_NAME": {
+      "B": 4,
+      "I": 1,
+      "total_records": 3
+    },
+    "MAIL_ARRIVAL": {
+      "B": 4,
+      "I": 16,
+      "total_records": 2
+    },
+    "MAIL_DEPARTURE": {
+      "B": 3,
+      "I": 12,
+      "total_records": 2
+    },
+    "MAIL_NIGHTS": {
+      "B": 12,
+      "I": 0,
+      "total_records": 5
+    },
+    "MAIL_PERSONS": {
+      "B": 14,
+      "I": 0,
+      "total_records": 2
+    },
+    "MAIL_ROOM": {
+      "B": 2,
+      "I": 21,
+      "total_records": 2
+    },
+    "MAIL_RATE_CODE": {
+      "B": 5,
+      "I": 12,
+      "total_records": 3
+    },
+    "MAIL_C_T_S": {
+      "B": 33,
+      "I": 5,
+      "total_records": 10
+    },
+    "MAIL_NET_TOTAL": {
+      "B": 0,
+      "I": 0,
+      "total_records": 0
+    },
+    "MAIL_TOTAL": {
+      "B": 0,
+      "I": 0,
+      "total_records": 0
+    },
+    "MAIL_TDF": {
+      "B": 72,
+      "I": 0,
+      "total_records": 6
+    },
+    "MAIL_ADR": {
+      "B": 0,
+      "I": 0,
+      "total_records": 0
+    },
+    "MAIL_AMOUNT": {
+      "B": 0,
+      "I": 0,
+      "total_records": 0
+    }
+  }
+}

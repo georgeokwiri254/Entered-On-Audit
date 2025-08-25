@@ -1,0 +1,92 @@
+{
+  "total_records": 10,
+  "agencies": {
+    "alkhalidiah": 1,
+    "ease_my_trip": 1,
+    "webbeds": 1,
+    "almosafer": 1,
+    "nirvana": 1,
+    "traveltino": 1,
+    "voyage": 1,
+    "tbo": 1,
+    "dubai_link": 1,
+    "duri": 1
+  },
+  "field_coverage": {
+    "MAIL_FIRST_NAME": {
+      "extracted": 7,
+      "total": 10,
+      "coverage_percent": 70.0
+    },
+    "MAIL_FULL_NAME": {
+      "extracted": 5,
+      "total": 10,
+      "coverage_percent": 50.0
+    },
+    "MAIL_ARRIVAL": {
+      "extracted": 5,
+      "total": 10,
+      "coverage_percent": 50.0
+    },
+    "MAIL_DEPARTURE": {
+      "extracted": 5,
+      "total": 10,
+      "coverage_percent": 50.0
+    },
+    "MAIL_NIGHTS": {
+      "extracted": 5,
+      "total": 10,
+      "coverage_percent": 50.0
+    },
+    "MAIL_PERSONS": {
+      "extracted": 5,
+      "total": 10,
+      "coverage_percent": 50.0
+    },
+    "MAIL_ROOM": {
+      "extracted": 6,
+      "total": 10,
+      "coverage_percent": 60.0
+    },
+    "MAIL_RATE_CODE": {
+      "extracted": 4,
+      "total": 10,
+      "coverage_percent": 40.0
+    },
+    "MAIL_C_T_S": {
+      "extracted": 10,
+      "total": 10,
+      "coverage_percent": 100.0
+    },
+    "MAIL_NET_TOTAL": {
+      "extracted": 5,
+      "total": 10,
+      "coverage_percent": 50.0
+    },
+    "MAIL_TOTAL": {
+      "extracted": 5,
+      "total": 10,
+      "coverage_percent": 50.0
+    },
+    "MAIL_TDF": {
+      "extracted": 6,
+      "total": 10,
+      "coverage_percent": 60.0
+    },
+    "MAIL_ADR": {
+      "extracted": 5,
+      "total": 10,
+      "coverage_percent": 50.0
+    },
+    "MAIL_AMOUNT": {
+      "extracted": 5,
+      "total": 10,
+      "coverage_percent": 50.0
+    }
+  },
+  "extraction_quality": {
+    "high_quality": 5,
+    "medium_quality": 0,
+    "low_quality": 5
+  }
+}

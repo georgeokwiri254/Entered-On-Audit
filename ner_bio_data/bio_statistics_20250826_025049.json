@@ -1,0 +1,129 @@
+{
+  "dataset_split": {
+    "train": 16,
+    "validation": 2,
+    "test": 3,
+    "total": 21
+  },
+  "token_statistics": {
+    "total_tokens": 12666,
+    "labeled_tokens": 487,
+    "avg_tokens_per_record": 603.1428571428571,
+    "avg_labeled_per_record": 23.19047619047619,
+    "labeling_ratio": 3.8449392073267017
+  },
+  "label_distribution": {
+    "O": 12179,
+    "B-MAIL_C_T_S": 56,
+    "B-MAIL_FIRST_NAME": 118,
+    "I-MAIL_FIRST_NAME": 3,
+    "B-MAIL_FULL_NAME": 7,
+    "B-MAIL_TDF": 83,
+    "B-MAIL_NIGHTS": 46,
+    "I-MAIL_C_T_S": 10,
+    "B-MAIL_ROOM": 5,
+    "I-MAIL_ROOM": 35,
+    "B-MAIL_RATE_CODE": 11,
+    "B-MAIL_PERSONS": 50,
+    "B-MAIL_ARRIVAL": 6,
+    "I-MAIL_ARRIVAL": 24,
+    "B-MAIL_DEPARTURE": 4,
+    "I-MAIL_DEPARTURE": 16,
+    "I-MAIL_RATE_CODE": 12,
+    "I-MAIL_FULL_NAME": 1
+  },
+  "agency_distribution": {
+    "expedia": 1,
+    "almosafer": 1,
+    "duri": 1,
+    "desert_adventures": 1,
+    "voyage": 1,
+    "dakkak": 1,
+    "travco": 1,
+    "agoda": 1,
+    "nirvana": 1,
+    "dubai_link": 1,
+    "brand": 2,
+    "tbo": 1,
+    "alkhalidiah": 1,
+    "miracle_tourism": 1,
+    "ease_my_trip": 1,
+    "darina": 1,
+    "traveltino": 1,
+    "funsun": 1,
+    "webbeds": 1,
+    "booking": 1
+  },
+  "entity_coverage": {
+    "MAIL_FIRST_NAME": {
+      "B": 118,
+      "I": 3,
+      "total_records": 10
+    },
+    "MAIL_FULL_NAME": {
+      "B": 7,
+      "I": 1,
+      "total_records": 4
+    },
+    "MAIL_ARRIVAL": {
+      "B": 6,
+      "I": 24,
+      "total_records": 3
+    },
+    "MAIL_DEPARTURE": {
+      "B": 4,
+      "I": 16,
+      "total_records": 3
+    },
+    "MAIL_NIGHTS": {
+      "B": 46,
+      "I": 0,
+      "total_records": 8
+    },
+    "MAIL_PERSONS": {
+      "B": 50,
+      "I": 0,
+      "total_records": 6
+    },
+    "MAIL_ROOM": {
+      "B": 5,
+      "I": 35,
+      "total_records": 4
+    },
+    "MAIL_RATE_CODE": {
+      "B": 11,
+      "I": 12,
+      "total_records": 7
+    },
+    "MAIL_C_T_S": {
+      "B": 56,
+      "I": 10,
+      "total_records": 13
+    },
+    "MAIL_NET_TOTAL": {
+      "B": 0,
+      "I": 0,
+      "total_records": 0
+    },
+    "MAIL_TOTAL": {
+      "B": 0,
+      "I": 0,
+      "total_records": 0
+    },
+    "MAIL_TDF": {
+      "B": 83,
+      "I": 0,
+      "total_records": 10
+    },
+    "MAIL_ADR": {
+      "B": 0,
+      "I": 0,
+      "total_records": 0
+    },
+    "MAIL_AMOUNT": {
+      "B": 0,
+      "I": 0,
+      "total_records": 0
+    }
+  }
+}

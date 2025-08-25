@@ -1,0 +1,102 @@
+{
+  "total_records": 21,
+  "agencies": {
+    "funsun": 1,
+    "alkhalidiah": 1,
+    "ease_my_trip": 1,
+    "webbeds": 1,
+    "desert_adventures": 1,
+    "almosafer": 1,
+    "nirvana": 1,
+    "darina": 1,
+    "traveltino": 1,
+    "voyage": 1,
+    "tbo": 1,
+    "miracle_tourism": 1,
+    "dubai_link": 1,
+    "dakkak": 1,
+    "duri": 1,
+    "travco": 1,
+    "brand": 2,
+    "agoda": 1,
+    "expedia": 1,
+    "booking": 1
+  },
+  "field_coverage": {
+    "MAIL_FIRST_NAME": {
+      "extracted": 12,
+      "total": 21,
+      "coverage_percent": 57.14285714285714
+    },
+    "MAIL_FULL_NAME": {
+      "extracted": 9,
+      "total": 21,
+      "coverage_percent": 42.857142857142854
+    },
+    "MAIL_ARRIVAL": {
+      "extracted": 8,
+      "total": 21,
+      "coverage_percent": 38.095238095238095
+    },
+    "MAIL_DEPARTURE": {
+      "extracted": 8,
+      "total": 21,
+      "coverage_percent": 38.095238095238095
+    },
+    "MAIL_NIGHTS": {
+      "extracted": 8,
+      "total": 21,
+      "coverage_percent": 38.095238095238095
+    },
+    "MAIL_PERSONS": {
+      "extracted": 9,
+      "total": 21,
+      "coverage_percent": 42.857142857142854
+    },
+    "MAIL_ROOM": {
+      "extracted": 11,
+      "total": 21,
+      "coverage_percent": 52.38095238095239
+    },
+    "MAIL_RATE_CODE": {
+      "extracted": 10,
+      "total": 21,
+      "coverage_percent": 47.61904761904761
+    },
+    "MAIL_C_T_S": {
+      "extracted": 21,
+      "total": 21,
+      "coverage_percent": 100.0
+    },
+    "MAIL_NET_TOTAL": {
+      "extracted": 10,
+      "total": 21,
+      "coverage_percent": 47.61904761904761
+    },
+    "MAIL_TOTAL": {
+      "extracted": 10,
+      "total": 21,
+      "coverage_percent": 47.61904761904761
+    },
+    "MAIL_TDF": {
+      "extracted": 11,
+      "total": 21,
+      "coverage_percent": 52.38095238095239
+    },
+    "MAIL_ADR": {
+      "extracted": 10,
+      "total": 21,
+      "coverage_percent": 47.61904761904761
+    },
+    "MAIL_AMOUNT": {
+      "extracted": 10,
+      "total": 21,
+      "coverage_percent": 47.61904761904761
+    }
+  },
+  "extraction_quality": {
+    "high_quality": 8,
+    "medium_quality": 3,
+    "low_quality": 10
+  }
+}

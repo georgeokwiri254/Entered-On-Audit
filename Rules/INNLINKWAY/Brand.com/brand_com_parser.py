@@ -233,5 +233,15 @@ def test_brand_com_parser():
     
     return results
 
+def extract_brand_fields(email_body, email_subject):
+    """Wrapper function for NER training data extraction"""
+    parser = BrandComParser()
+    result = parser.parse_brand_com_email(email_body)
+    return result
+
+def is_brand_email(email_body, email_subject):
+    """Check if email is from Brand.com"""
+    return 'brand.com' in email_body.lower() or 'brand' in email_subject.lower()
+
 if __name__ == "__main__":
     test_brand_com_parser()

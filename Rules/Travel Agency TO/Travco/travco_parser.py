@@ -126,8 +126,8 @@ def extract_travco_fields(email_body, email_subject):
     price_patterns = [
         r'AED\s+([\d,]+\.?\d*)',
         r'A\s*E\s*D\s+([\d,]+\.?\d*)',
-        r'1,320\.00',  # Specific price from the file
-        r'1320\.00',
+        r'(1,320\.00)',  # Specific price from the file
+        r'(1320\.00)',
         r'Total.*?([\d,]+\.?\d*)',
         r'(1,?320\.00)',  # Specific price variations
         r'([\d,]+\.\d{2})'  # Any decimal number format

@@ -7,7 +7,7 @@ Based on analysis of Hotel New Booking format
 import re
 from datetime import datetime
 
-def extract_duri_travel_fields(email_body, email_subject):
+def extract_dakkak_fields(email_body, email_subject):
     """
     Extract reservation fields from Duri Travel email content
     

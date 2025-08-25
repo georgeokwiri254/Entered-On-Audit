@@ -240,5 +240,15 @@ def test_expedia_parser():
     
     return results
 
+def extract_expedia_fields(email_body, email_subject):
+    """Wrapper function for NER training data extraction"""
+    parser = ExpediaParser()
+    result = parser.parse_expedia_email(email_body)
+    return result
+
+def is_expedia_email(email_body, email_subject):
+    """Check if email is from Expedia"""
+    return 'expedia' in email_body.lower() or 'expedia' in email_subject.lower()
+
 if __name__ == "__main__":
     test_expedia_parser()
