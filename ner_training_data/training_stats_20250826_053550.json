@@ -1,0 +1,103 @@
+{
+  "total_records": 23,
+  "agencies": {
+    "funsun": 1,
+    "alkhalidiah": 1,
+    "ease_my_trip": 1,
+    "webbeds": 1,
+    "desert_adventures": 1,
+    "almosafer": 1,
+    "nirvana": 1,
+    "darina": 1,
+    "traveltino": 1,
+    "desert_gate": 2,
+    "voyage": 1,
+    "tbo": 1,
+    "miracle_tourism": 1,
+    "dubai_link": 1,
+    "dakkak": 1,
+    "duri": 1,
+    "travco": 1,
+    "brand": 2,
+    "agoda": 1,
+    "expedia": 1,
+    "booking": 1
+  },
+  "field_coverage": {
+    "MAIL_FIRST_NAME": {
+      "extracted": 15,
+      "total": 23,
+      "coverage_percent": 65.21739130434783
+    },
+    "MAIL_FULL_NAME": {
+      "extracted": 10,
+      "total": 23,
+      "coverage_percent": 43.47826086956522
+    },
+    "MAIL_ARRIVAL": {
+      "extracted": 9,
+      "total": 23,
+      "coverage_percent": 39.130434782608695
+    },
+    "MAIL_DEPARTURE": {
+      "extracted": 9,
+      "total": 23,
+      "coverage_percent": 39.130434782608695
+    },
+    "MAIL_NIGHTS": {
+      "extracted": 9,
+      "total": 23,
+      "coverage_percent": 39.130434782608695
+    },
+    "MAIL_PERSONS": {
+      "extracted": 10,
+      "total": 23,
+      "coverage_percent": 43.47826086956522
+    },
+    "MAIL_ROOM": {
+      "extracted": 12,
+      "total": 23,
+      "coverage_percent": 52.17391304347826
+    },
+    "MAIL_RATE_CODE": {
+      "extracted": 12,
+      "total": 23,
+      "coverage_percent": 52.17391304347826
+    },
+    "MAIL_C_T_S": {
+      "extracted": 23,
+      "total": 23,
+      "coverage_percent": 100.0
+    },
+    "MAIL_NET_TOTAL": {
+      "extracted": 12,
+      "total": 23,
+      "coverage_percent": 52.17391304347826
+    },
+    "MAIL_TOTAL": {
+      "extracted": 12,
+      "total": 23,
+      "coverage_percent": 52.17391304347826
+    },
+    "MAIL_TDF": {
+      "extracted": 12,
+      "total": 23,
+      "coverage_percent": 52.17391304347826
+    },
+    "MAIL_ADR": {
+      "extracted": 12,
+      "total": 23,
+      "coverage_percent": 52.17391304347826
+    },
+    "MAIL_AMOUNT": {
+      "extracted": 12,
+      "total": 23,
+      "coverage_percent": 52.17391304347826
+    }
+  },
+  "extraction_quality": {
+    "high_quality": 9,
+    "medium_quality": 4,
+    "low_quality": 10
+  }
+}

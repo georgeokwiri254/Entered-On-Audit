@@ -132,6 +132,13 @@ def get_travel_agency_rule(c_t_s_name, sender_email="", text=""):
               "confirmed booking" in text.lower()):
             return ("TRAVEL_AGENCY_ALMOSAFER", "Rules/Travel Agency TO/Almosafer", insert_user)
         
+        # Webbeds
+        elif ("webbeds" in c_t_s_clean.lower() or
+              "webbeds" in sender_email.lower() or
+              "htl-wbd" in text.lower() or
+              "booking confirmed from allocation" in text.lower()):
+            return ("TRAVEL_AGENCY_WEBBEDS", "Rules/Travel Agency TO/Webbeds", insert_user)
+        
         # Generic Travel Agency - fallback
         else:
             return ("TRAVEL_AGENCY_GENERIC", None, insert_user)
@@ -534,6 +541,45 @@ def extract_reservation_fields(text, sender_email="", c_t_s_name=""):
                 return mapped_fields
         except ImportError:
             logger.warning("AlKhalidiah parser not found, falling back to default patterns")
+    
+    # Check for Webbeds emails
+    if "webbeds" in sender_email.lower() or "htl-wbd" in text.lower() or "booking confirmed from allocation" in text.lower():
+        # Import Webbeds parser
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), 'Rules', 'Travel Agency TO', 'Webbeds'))
+        try:
+            from webbeds_parser import extract_webbeds_fields, is_webbeds_email
+            
+            if is_webbeds_email(sender_email, text):
+                webbeds_fields = extract_webbeds_fields(text, "")
+                # Map Webbeds fields to the expected field names used in the app
+                mapped_fields = {
+                    'FIRST_NAME': webbeds_fields.get('MAIL_FIRST_NAME', 'N/A'),
+                    'FULL_NAME': webbeds_fields.get('MAIL_FULL_NAME', 'N/A'),
+                    'ARRIVAL': webbeds_fields.get('MAIL_ARRIVAL', 'N/A'),
+                    'DEPARTURE': webbeds_fields.get('MAIL_DEPARTURE', 'N/A'),
+                    'NIGHTS': webbeds_fields.get('MAIL_NIGHTS', 'N/A'),
+                    'PERSONS': webbeds_fields.get('MAIL_PERSONS', 'N/A'),
+                    'ROOM': webbeds_fields.get('MAIL_ROOM', 'N/A'),
+                    'RATE_CODE': webbeds_fields.get('MAIL_RATE_CODE', 'N/A'),
+                    'C_T_S': webbeds_fields.get('MAIL_C_T_S', 'N/A'),
+                    'C_T_S_NAME': webbeds_fields.get('MAIL_C_T_S', 'N/A'),
+                    'NET_TOTAL': webbeds_fields.get('MAIL_NET_TOTAL', 'N/A'),
+                    'TOTAL': webbeds_fields.get('MAIL_TOTAL', 'N/A'),
+                    'TDF': webbeds_fields.get('MAIL_TDF', 'N/A'),
+                    'ADR': webbeds_fields.get('MAIL_ADR', 'N/A'),
+                    'AMOUNT': webbeds_fields.get('MAIL_AMOUNT', 'N/A'),
+                    # Add formatted currency versions
+                    'NET_TOTAL_AED': f"AED {webbeds_fields.get('MAIL_NET_TOTAL', 0):,.2f}" if webbeds_fields.get('MAIL_NET_TOTAL', 'N/A') != 'N/A' else 'N/A',
+                    'TOTAL_AED': f"AED {webbeds_fields.get('MAIL_TOTAL', 0):,.2f}" if webbeds_fields.get('MAIL_TOTAL', 'N/A') != 'N/A' else 'N/A',
+                    'TDF_AED': f"AED {webbeds_fields.get('MAIL_TDF', 0):,.2f}" if webbeds_fields.get('MAIL_TDF', 'N/A') != 'N/A' else 'N/A',
+                    'ADR_AED': f"AED {webbeds_fields.get('MAIL_ADR', 0):,.2f}" if webbeds_fields.get('MAIL_ADR', 'N/A') != 'N/A' else 'N/A',
+                    'AMOUNT_AED': f"AED {webbeds_fields.get('MAIL_AMOUNT', 0):,.2f}" if webbeds_fields.get('MAIL_AMOUNT', 'N/A') != 'N/A' else 'N/A'
+                }
+                return mapped_fields
+        except ImportError:
+            logger.warning("Webbeds parser not found, falling back to default patterns")
     
     # ** INNLINKWAY PARSERS INTEGRATION **
     # Check for INNLINKWAY emails (noreply-reservations@millenniumhotels.com)
@@ -1636,7 +1682,7 @@ def main():
     email_days = 2
     
     # Create tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["📧 Email Extraction Results", "📊 Converted Data", "🔍 Audit Results", "📝 Logs & History"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📧 Email Extraction Results", "📊 Converted Data", "🔍 Audit Results", "📝 Logs & History", "🤖 NER Training"])
     
     # Tab 1: Email Extraction Results
     with tab1:
@@ -2419,6 +2465,132 @@ def main():
         except Exception as e:
             st.error(f"❌ Error loading logs: {e}")
             st.write("This might be due to database initialization issues. Try processing some data first.")
+
+    # Tab 5: NER Training
+    with tab5:
+        st.header("🤖 NER Training Data Management")
+        
+        # NER training data overview
+        st.subheader("📊 Training Data Overview")
+        
+        # Check for existing training data files
+        ner_training_dir = Path("ner_training_data")
+        ner_bio_dir = Path("ner_bio_data")
+        
+        if ner_training_dir.exists() and ner_bio_dir.exists():
+            training_files = list(ner_training_dir.glob("training_data_*.json"))
+            bio_files = list(ner_bio_dir.glob("train_*.json"))
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Training Data Files", len(training_files))
+            with col2:
+                st.metric("BIO Format Files", len(bio_files))
+            with col3:
+                if training_files:
+                    latest_file = max(training_files, key=os.path.getctime)
+                    st.metric("Latest Update", latest_file.name.split('_')[-1].replace('.json', ''))
+        
+        # Training data actions
+        st.subheader("🔧 Training Data Actions")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Update Existing Data**")
+            if st.button("🔄 Update Existing JSON Files", type="primary"):
+                with st.spinner("Updating existing training and BIO data files..."):
+                    try:
+                        # Import and run the NER extractor to update existing files
+                        import subprocess
+                        result = subprocess.run([
+                            sys.executable, "ner_training_data_extractor.py", "--update-existing"
+                        ], capture_output=True, text=True, cwd=os.getcwd())
+                        
+                        if result.returncode == 0:
+                            st.success("✅ Successfully updated existing JSON files")
+                            st.text("Updated files:")
+                            st.code(result.stdout)
+                        else:
+                            st.error("❌ Failed to update files")
+                            st.code(result.stderr)
+                    except Exception as e:
+                        st.error(f"Error updating files: {e}")
+        
+        with col2:
+            st.write("**View Training Statistics**")
+            if st.button("📈 Show Training Statistics"):
+                try:
+                    if ner_training_dir.exists():
+                        stats_files = list(ner_training_dir.glob("training_stats_*.json"))
+                        if stats_files:
+                            latest_stats = max(stats_files, key=os.path.getctime)
+                            with open(latest_stats, 'r') as f:
+                                stats = json.load(f)
+                            
+                            st.json(stats)
+                        else:
+                            st.info("No training statistics available")
+                    else:
+                        st.warning("Training data directory not found")
+                except Exception as e:
+                    st.error(f"Error loading statistics: {e}")
+        
+        # Training data file viewer
+        st.subheader("📁 Training Data Files")
+        
+        if ner_training_dir.exists():
+            training_files = sorted(ner_training_dir.glob("*.json"), key=os.path.getctime, reverse=True)
+            bio_files = sorted(ner_bio_dir.glob("*.json"), key=os.path.getctime, reverse=True)
+            
+            file_type = st.selectbox("Select file type to view:", ["Training Data", "BIO Format", "Statistics"])
+            
+            if file_type == "Training Data":
+                if training_files:
+                    selected_file = st.selectbox("Select training file:", [f.name for f in training_files if "training_data_" in f.name])
+                    if selected_file:
+                        try:
+                            with open(ner_training_dir / selected_file, 'r') as f:
+                                data = json.load(f)
+                            st.write(f"**File:** {selected_file}")
+                            st.write(f"**Entries:** {len(data)}")
+                            st.json(data[:3])  # Show first 3 entries
+                        except Exception as e:
+                            st.error(f"Error loading file: {e}")
+                else:
+                    st.info("No training data files found")
+                    
+            elif file_type == "BIO Format":
+                if bio_files:
+                    selected_file = st.selectbox("Select BIO file:", [f.name for f in bio_files])
+                    if selected_file:
+                        try:
+                            with open(ner_bio_dir / selected_file, 'r') as f:
+                                data = json.load(f)
+                            st.write(f"**File:** {selected_file}")
+                            st.write(f"**Entries:** {len(data)}")
+                            st.json(data[:3])  # Show first 3 entries
+                        except Exception as e:
+                            st.error(f"Error loading file: {e}")
+                else:
+                    st.info("No BIO format files found")
+                    
+            elif file_type == "Statistics":
+                stats_files = [f for f in training_files if "training_stats_" in f.name]
+                if stats_files:
+                    selected_file = st.selectbox("Select statistics file:", [f.name for f in stats_files])
+                    if selected_file:
+                        try:
+                            with open(ner_training_dir / selected_file, 'r') as f:
+                                stats = json.load(f)
+                            st.write(f"**File:** {selected_file}")
+                            st.json(stats)
+                        except Exception as e:
+                            st.error(f"Error loading file: {e}")
+                else:
+                    st.info("No statistics files found")
+        else:
+            st.warning("Training data directories not found. Run the NER training data extractor first.")
 
 if __name__ == "__main__":
     main()

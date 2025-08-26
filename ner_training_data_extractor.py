@@ -11,6 +11,7 @@ import json
 import csv
 import importlib
 import traceback
+import argparse
 from pathlib import Path
 from typing import Dict, List, Any, Tuple
 from datetime import datetime
@@ -478,12 +479,119 @@ class NERTrainingDataExtractor:
         for field, info in coverage_sorted[:8]:
             print(f"  {field}: {info['coverage_percent']:.1f}% ({info['extracted']}/{info['total']})")
 
+    def update_existing_files(self) -> bool:
+        """Update existing BIO and training JSON files without regenerating from scratch"""
+        print("🔄 Updating existing JSON files...")
+        
+        try:
+            # Check for existing training data files
+            training_files = list(self.output_dir.glob("training_data_*.json"))
+            bio_dir = Path("ner_bio_data")
+            bio_files = list(bio_dir.glob("train_*.json")) if bio_dir.exists() else []
+            
+            if not training_files and not bio_files:
+                print("❌ No existing files found to update")
+                return False
+            
+            # Update training data files
+            if training_files:
+                latest_training_file = max(training_files, key=os.path.getctime)
+                print(f"📄 Updating training data file: {latest_training_file.name}")
+                
+                # Load existing data
+                with open(latest_training_file, 'r') as f:
+                    existing_data = json.load(f)
+                
+                # Add metadata update
+                updated_data = []
+                for entry in existing_data:
+                    entry['last_updated'] = datetime.now().isoformat()
+                    updated_data.append(entry)
+                
+                # Save updated data with new timestamp
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                updated_filename = f"training_data_{timestamp}.json"
+                updated_path = self.output_dir / updated_filename
+                
+                with open(updated_path, 'w') as f:
+                    json.dump(updated_data, f, indent=2)
+                print(f"✅ Updated training data saved to: {updated_filename}")
+                
+                # Update statistics
+                self.generate_statistics(updated_data, timestamp)
+            
+            # Update BIO files
+            if bio_files and bio_dir.exists():
+                print("📄 Updating BIO format files...")
+                
+                for bio_file in bio_files:
+                    print(f"  - Updating: {bio_file.name}")
+                    
+                    # Load existing BIO data
+                    with open(bio_file, 'r') as f:
+                        bio_data = json.load(f)
+                    
+                    # Add metadata update
+                    for entry in bio_data:
+                        entry['last_updated'] = datetime.now().isoformat()
+                    
+                    # Save updated BIO data
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    updated_bio_name = bio_file.name.replace(bio_file.name.split('_')[-1], f"{timestamp}.json")
+                    updated_bio_path = bio_dir / updated_bio_name
+                    
+                    with open(updated_bio_path, 'w') as f:
+                        json.dump(bio_data, f, indent=2)
+                
+                # Update BIO statistics
+                bio_stats_files = list(bio_dir.glob("bio_statistics_*.json"))
+                if bio_stats_files:
+                    latest_stats = max(bio_stats_files, key=os.path.getctime)
+                    with open(latest_stats, 'r') as f:
+                        bio_stats = json.load(f)
+                    
+                    bio_stats['last_updated'] = datetime.now().isoformat()
+                    bio_stats['update_note'] = "Updated existing files without regeneration"
+                    
+                    updated_stats_name = f"bio_statistics_{timestamp}.json"
+                    updated_stats_path = bio_dir / updated_stats_name
+                    
+                    with open(updated_stats_path, 'w') as f:
+                        json.dump(bio_stats, f, indent=2)
+                
+                print("✅ Updated BIO format files")
+            
+            print("🎉 Successfully updated existing JSON files")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error updating files: {e}")
+            return False
+
 def main():
     """Main extraction workflow"""
-    print("🚀 Starting NER Training Data Extraction")
-    print("="*60)
+    parser = argparse.ArgumentParser(description="NER Training Data Extractor")
+    parser.add_argument("--update-existing", action="store_true", 
+                       help="Update existing JSON files without regenerating from scratch")
+    
+    args = parser.parse_args()
     
     extractor = NERTrainingDataExtractor()
+    
+    if args.update_existing:
+        print("🔄 Update Mode: Updating existing JSON files")
+        print("="*60)
+        
+        success = extractor.update_existing_files()
+        if success:
+            print("\n🎉 Successfully updated existing JSON files!")
+        else:
+            print("\n❌ Failed to update existing files.")
+        return
+    
+    # Default behavior: full extraction
+    print("🚀 Starting NER Training Data Extraction")
+    print("="*60)
     
     # Extract training data
     training_data = extractor.extract_all_training_data()

@@ -1,0 +1,132 @@
+{
+  "dataset_split": {
+    "train": 18,
+    "validation": 2,
+    "test": 3,
+    "total": 23
+  },
+  "token_statistics": {
+    "total_tokens": 13719,
+    "labeled_tokens": 550,
+    "avg_tokens_per_record": 596.4782608695652,
+    "avg_labeled_per_record": 23.91304347826087,
+    "labeling_ratio": 4.009038559661783
+  },
+  "label_distribution": {
+    "O": 13169,
+    "B-MAIL_C_T_S": 56,
+    "B-MAIL_FIRST_NAME": 131,
+    "I-MAIL_FIRST_NAME": 3,
+    "B-MAIL_FULL_NAME": 8,
+    "B-MAIL_TDF": 84,
+    "B-MAIL_NIGHTS": 82,
+    "B-MAIL_RATE_CODE": 16,
+    "B-MAIL_ROOM": 6,
+    "I-MAIL_ROOM": 36,
+    "B-MAIL_PERSONS": 51,
+    "I-MAIL_C_T_S": 10,
+    "I-MAIL_FULL_NAME": 1,
+    "B-MAIL_ARRIVAL": 6,
+    "I-MAIL_ARRIVAL": 24,
+    "B-MAIL_DEPARTURE": 4,
+    "I-MAIL_DEPARTURE": 16,
+    "I-MAIL_RATE_CODE": 16
+  },
+  "agency_distribution": {
+    "duri": 1,
+    "dakkak": 1,
+    "ease_my_trip": 1,
+    "dubai_link": 1,
+    "almosafer": 1,
+    "miracle_tourism": 1,
+    "travco": 1,
+    "tbo": 1,
+    "booking": 1,
+    "nirvana": 1,
+    "desert_gate": 2,
+    "alkhalidiah": 1,
+    "brand": 2,
+    "voyage": 1,
+    "expedia": 1,
+    "desert_adventures": 1,
+    "darina": 1,
+    "traveltino": 1,
+    "funsun": 1,
+    "webbeds": 1,
+    "agoda": 1
+  },
+  "entity_coverage": {
+    "MAIL_FIRST_NAME": {
+      "B": 131,
+      "I": 3,
+      "total_records": 13
+    },
+    "MAIL_FULL_NAME": {
+      "B": 8,
+      "I": 1,
+      "total_records": 5
+    },
+    "MAIL_ARRIVAL": {
+      "B": 6,
+      "I": 24,
+      "total_records": 3
+    },
+    "MAIL_DEPARTURE": {
+      "B": 4,
+      "I": 16,
+      "total_records": 3
+    },
+    "MAIL_NIGHTS": {
+      "B": 82,
+      "I": 0,
+      "total_records": 9
+    },
+    "MAIL_PERSONS": {
+      "B": 51,
+      "I": 0,
+      "total_records": 7
+    },
+    "MAIL_ROOM": {
+      "B": 6,
+      "I": 36,
+      "total_records": 5
+    },
+    "MAIL_RATE_CODE": {
+      "B": 16,
+      "I": 16,
+      "total_records": 9
+    },
+    "MAIL_C_T_S": {
+      "B": 56,
+      "I": 10,
+      "total_records": 13
+    },
+    "MAIL_NET_TOTAL": {
+      "B": 0,
+      "I": 0,
+      "total_records": 0
+    },
+    "MAIL_TOTAL": {
+      "B": 0,
+      "I": 0,
+      "total_records": 0
+    },
+    "MAIL_TDF": {
+      "B": 84,
+      "I": 0,
+      "total_records": 11
+    },
+    "MAIL_ADR": {
+      "B": 0,
+      "I": 0,
+      "total_records": 0
+    },
+    "MAIL_AMOUNT": {
+      "B": 0,
+      "I": 0,
+      "total_records": 0
+    }
+  },
+  "last_updated": "2025-08-26T05:35:52.176231",
+  "update_note": "Updated existing files without regeneration"
+}
